@@ -160,6 +160,20 @@ class Skills(Base):
     title_en = Column(String(255), nullable=False)
     listSkills_en = Column(JSON, nullable=False)
 
+class Personal(Base):
+    """Немного обо мне"""
+    __tablename__ = "Pesonal_Fast"
+
+    id = Column(Integer, primary_key=True, index=True)
+    emoji = Column(String(255), nullable=False)
+
+    """RU Version"""
+    title_ru = Column(String(255), nullable=False)
+    description_ru = Column(Text, nullable=False)
+
+    """ENG Version"""
+    title_en = Column(String(255), nullable=False)
+    description_en = Column(Text, nullable=False)
 
 class ContactMessage(Base):
     """Модель сообщения из контактной формы"""
@@ -183,6 +197,22 @@ class Settings(Base):
     key = Column(String(100), unique=True, nullable=False, index=True)
     value = Column(JSON, nullable=False)  # Хранит весь объект в JSON
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    email = Column(String(100), unique=True, nullable=False, index=True)
+    phone = Column(String(100), unique=True, nullable=False, index=True)
+
+    """RU Version"""
+    location_ru = Column(String(100), unique=True, nullable=False, index=True)
+    title_text_footer_ru = Column(String(500), unique=True, nullable=False, index=True)
+    desc_text_footer_ru = Column(String(500), unique=True, nullable=False, index=True)
+    footer_info_ru = Column(String(500), unique=True, nullable=False, index=True)
+
+    """ENG Version"""
+    location_en = Column(String(100), unique=True, nullable=False, index=True)
+    title_text_footer_en = Column(String(500), unique=True, nullable=False, index=True)
+    desc_text_footer_en = Column(String(500), unique=True, nullable=False, index=True)
+    footer_info_en = Column(String(500), unique=True, nullable=False, index=True)
+
 
 
 

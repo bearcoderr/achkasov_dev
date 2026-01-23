@@ -1,7 +1,7 @@
 """Доменные сущности для главной страницы"""
 from dataclasses import dataclass
 from typing import List, Optional, Dict, Any
-from .base import LocalizedField, DomainEntity
+from .base import LocalizedField, LocalizedList, DomainEntity
 
 
 @dataclass
@@ -45,13 +45,13 @@ class Service(DomainEntity):
     """Услуга"""
     title: LocalizedField
     description: LocalizedField
-    details: Dict[str, List[str]]  # ru: [...], en: [...]
+    details: LocalizedList
 
     def to_dict(self) -> Dict[str, Any]:
         return {
             "title": self.title.to_dict(),
             "description": self.description.to_dict(),
-            "details": self.details
+            "details": self.details.to_dict(),
         }
 
 
@@ -95,17 +95,17 @@ class Experience(DomainEntity):
 class SkillCategory(DomainEntity):
     """Категория навыков"""
     name: LocalizedField
-    items: List[str]
+    items: LocalizedList
 
     def to_dict(self) -> Dict[str, Any]:
         return {
             "name": self.name.to_dict(),
-            "items": self.items
+            "items": self.items.to_dict(),
         }
 
 
 @dataclass
-class Certificate(DomainEntity):
+class CertificateEntity(DomainEntity):
     """Сертификат"""
     title: LocalizedField
     provider: str
@@ -141,23 +141,32 @@ class PersonalFact(DomainEntity):
 @dataclass
 class ContactInfo(DomainEntity):
     """Контактная информация"""
+    title: str
+    description: str
     email: str
     phone: str
     location: LocalizedField
-    telegram: str
-    github: str
-    linkedin: str
 
     def to_dict(self) -> Dict[str, Any]:
         return {
+            "title": self.title,
+            "description": self.description,
             "email": self.email,
             "phone": self.phone,
             "location": self.location.to_dict(),
-            "telegram": self.telegram,
-            "github": self.github,
-            "linkedin": self.linkedin
         }
 
+@dataclass
+class FooterInfo:
+    """Данные для Footer (подвал сайта)"""
+    rights: LocalizedField  # "Все права защищены"
+    privacy: LocalizedField  # "Политика конфиденциальности"
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "rights": self.rights,
+            "privacy": self.privacy,
+        }
 
 @dataclass
 class PageData(DomainEntity):
@@ -168,9 +177,10 @@ class PageData(DomainEntity):
     projects: List[Project]
     experience: List[Experience]
     skills: List[SkillCategory]
-    certificates: List[Certificate]
+    certificates: List[CertificateEntity]
     personal: List[PersonalFact]
     contact: ContactInfo
+    footer: FooterInfo
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -182,5 +192,6 @@ class PageData(DomainEntity):
             "skills": [s.to_dict() for s in self.skills],
             "certificates": [c.to_dict() for c in self.certificates],
             "personal": [p.to_dict() for p in self.personal],
-            "contact": self.contact.to_dict()
+            "contact": self.contact.to_dict(),
+            "footer": self.footer.to_dict()
         }

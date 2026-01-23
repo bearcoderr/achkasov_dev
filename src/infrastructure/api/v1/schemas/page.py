@@ -8,6 +8,7 @@ class LocalizedFieldSchema(BaseModel):
     en: str
 
 
+
 class HeroDataSchema(BaseModel):
     greeting: LocalizedFieldSchema
     img: str
@@ -24,8 +25,8 @@ class AboutDataSchema(BaseModel):
 
 
 class ServiceSchema(BaseModel):
-    title: Dict[str, str]
-    description: Dict[str, str]
+    title: LocalizedFieldSchema
+    description: LocalizedFieldSchema
     details: Dict[str, List[str]]
 
 
@@ -46,7 +47,7 @@ class ExperienceSchema(BaseModel):
 
 class SkillCategorySchema(BaseModel):
     name: Dict[str, str]
-    items: List[str]
+    items: Dict[str, List[str]]
 
 
 class CertificateSchema(BaseModel):
@@ -64,12 +65,11 @@ class PersonalFactSchema(BaseModel):
 
 
 class ContactInfoSchema(BaseModel):
+    title: Dict[str, str]
+    description: Dict[str, str]
     email: str
     phone: str
     location: Dict[str, str]
-    telegram: str
-    github: str
-    linkedin: str
 
 
 class PageDataSchema(BaseModel):

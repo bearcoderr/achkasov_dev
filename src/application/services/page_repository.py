@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from typing import List
 from src.core.entities.page import (
     HeroData, AboutData, Service, Project,
-    Experience, SkillCategory, Certificate,
+    Experience, SkillCategory, CertificateEntity,
     PersonalFact, ContactInfo, PageData
 )
 
@@ -52,7 +52,7 @@ class IPageRepository(ABC):
         pass
 
     @abstractmethod
-    def get_certificates(self) -> List[Certificate]:
+    def get_certificates(self) -> List[CertificateEntity]:
         """Получить сертификаты"""
         pass
 

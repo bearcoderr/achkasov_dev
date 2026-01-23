@@ -2,7 +2,7 @@
 from .base import LocalizedField, DomainEntity
 from .page import (
     HeroData, AboutData, Service, Project,
-    Experience, SkillCategory, Certificate,
+    Experience, SkillCategory, CertificateEntity,
     PersonalFact, ContactInfo, PageData
 )
 from .contact import ContactForm
@@ -16,7 +16,7 @@ __all__ = [
     "Project",
     "Experience",
     "SkillCategory",
-    "Certificate",
+    "CertificateEntity",
     "PersonalFact",
     "ContactInfo",
     "PageData",

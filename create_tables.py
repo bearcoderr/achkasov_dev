@@ -7,10 +7,7 @@ root_dir = Path(__file__).parent
 sys.path.insert(0, str(root_dir))
 
 from src.infrastructure.db.database import engine, Base
-from src.infrastructure.db.models import (
-    Project, Service, Experience, Certificate,
-    ContactMessage, Settings
-)
+
 
 
 def create_tables():

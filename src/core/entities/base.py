@@ -1,5 +1,5 @@
 """Базовые классы для доменных сущностей"""
-from typing import Dict, Any
+from typing import Dict, Any, List
 from dataclasses import dataclass
 
 
@@ -14,6 +14,20 @@ class LocalizedField:
 
     @classmethod
     def from_dict(cls, data: Dict[str, str]) -> "LocalizedField":
+        return cls(ru=data["ru"], en=data["en"])
+
+
+@dataclass
+class LocalizedList:
+    """Локализованный список строк (ru/en)"""
+    ru: List[str]
+    en: List[str]
+
+    def to_dict(self) -> Dict[str, List[str]]:
+        return {"ru": self.ru, "en": self.en}
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, List[str]]) -> "LocalizedList":
         return cls(ru=data["ru"], en=data["en"])
 
 

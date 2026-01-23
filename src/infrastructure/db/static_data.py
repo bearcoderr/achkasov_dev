@@ -2,8 +2,8 @@
 
 """Статические данные портфолио (имитация БД)"""
 from src.core.entities.page import (
-    HeroData, AboutData, Service, Project, Experience,
-    SkillCategory, Certificate, PersonalFact, ContactInfo
+    AboutData, Service, Project, Experience,
+    SkillCategory, CertificateEntity, PersonalFact, ContactInfo, FooterInfo
 )
 from src.core.entities.base import LocalizedField
 
@@ -171,7 +171,7 @@ SKILLS = [
 
 # Certificates
 CERTIFICATES = [
-    Certificate(
+    CertificateEntity(
         title=LocalizedField(ru="Python для профессионалов", en="Python for Professionals"),
         provider="Stepik, 2023",
         description=LocalizedField(
@@ -181,7 +181,7 @@ CERTIFICATES = [
         image_url="/python-certificate.png",
         issue_date="2023-06-15"
     ),
-    Certificate(
+    CertificateEntity(
         title=LocalizedField(ru="Django Web Framework", en="Django Web Framework"),
         provider="Coursera, 2022",
         description=LocalizedField(
@@ -213,12 +213,20 @@ PERSONAL_FACTS = [
     )
 ]
 
-# Contact Info
+
+
 CONTACT_INFO = ContactInfo(
     email="aleksey@example.com",
     phone="+7 (999) 123-45-67",
     location=LocalizedField(ru="Москва, Россия", en="Moscow, Russia"),
-    telegram="https://t.me/yourusername",
-    github="https://github.com/yourusername",
-    linkedin="https://linkedin.com/in/yourusername"
+    title=LocalizedField(ru="", en=""),
+    description=LocalizedField(
+        ru="Готов обсудить ваш проект. Свяжитесь со мной любым удобным способом!",
+        en="Ready to discuss your project. Contact me in any convenient way!"
+    )
+)
+
+FOOTER_INFO = FooterInfo(
+    rights=LocalizedField(ru="Все права защищены", en="All rights reserved"),
+    privacy=LocalizedField(ru="Политика конфиденциальности", en="Privacy Policy"),
 )
