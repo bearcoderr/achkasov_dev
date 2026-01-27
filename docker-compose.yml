@@ -22,16 +22,16 @@ services:
       retries: 5
       start_period: 10s
 
-  # FastAPI Application
-  api:
+  # FastAPI Backend
+  backend:
     build:
       context: .
-      dockerfile: Dockerfile
-    container_name: bearcoderr_api
+      dockerfile: Dockerfile.backend
+    container_name: bearcoderr_backend
     restart: unless-stopped
     environment:
       # Database
-      DATABASE_URL: postgresql://${POSTGRES_USER:-portfolio_user}:${POSTGRES_PASSWORD:-strong_password_here_123}@postgres:5432/${POSTGRES_DB:-portfolio_db}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-portfolio_user}:${POSTGRES_PASSWORD:-portfolio_password}@postgres:5432/${POSTGRES_DB:-portfolio_db}
 
       # Application
       ENVIRONMENT: ${ENVIRONMENT:-development}
@@ -41,23 +41,48 @@ services:
       # CORS
       ALLOWED_ORIGINS: '["http://localhost:3000","http://localhost:3001","https://yourdomain.com"]'
 
-
       # Security
       SECRET_KEY: ${SECRET_KEY:-your-secret-key-change-in-production}
 
     ports:
-      - "${API_PORT:-8001}:8000"
+      - "${API_PORT:-8000}:8000"
     depends_on:
       postgres:
         condition: service_healthy
     networks:
       - bearcoderr_network
     volumes:
-      - ./src:/app/src
+      - ./backend/src:/app/src
       - ./logs:/app/logs
     command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
 
-  # PgAdmin (опционально, для управления БД)
+  # Frontend (React/Next.js)
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: bearcoderr_frontend
+    restart: unless-stopped
+    environment:
+      # Backend API URL
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+      NODE_ENV: ${NODE_ENV:-development}
+      NEXT_TELEMETRY_DISABLED: 1
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    depends_on:
+      - backend
+    networks:
+      - bearcoderr_network
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    command: npm run dev
+
+
+
+  # PgAdmin (для управления БД)
   pgadmin:
     image: dpage/pgadmin4:latest
     container_name: bearcoderr_pgadmin
@@ -74,17 +99,6 @@ services:
       - bearcoderr_network
     volumes:
       - pgadmin_data:/var/lib/pgadmin
-
-
-  migrations:
-    build: .
-    working_dir: /app
-    command: alembic -c /app/alembic.ini upgrade head
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - bearcoderr_network
 
 volumes:
   postgres_data:

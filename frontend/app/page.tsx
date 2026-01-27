@@ -89,8 +89,8 @@ export default function Home() {
             </p>
             <p className="mb-4 text-xs text-muted-foreground">
               {lang === "ru"
-                  ? "Убедитесь, что FastAPI сервер запущен на http://localhost:8001"
-                  : "Make sure FastAPI server is running on http://localhost:8001"}
+                  ? "Убедитесь, что FastAPI сервер запущен на http://localhost:8000"
+                  : "Make sure FastAPI server is running on http://localhost:8000"}
             </p>
             <button
                 onClick={() => window.location.reload()}
@@ -194,9 +194,11 @@ export default function Home() {
 
     // 9. FOOTER (для подвала)
     footer: {
-      rights: footer?.rights?.[currentLang] ?? (lang === "ru" ? "Все права защищены" : "All rights reserved"),
-      privacy: footer?.privacy?.[currentLang] ?? (lang === "ru" ? "Политика конфиденциальности" : "Privacy Policy"),
-      social_links: footer?.social_links ?? hero.social_links ?? {}
+      // Если в PageData нет отдельного поля footer, используем заглушки или данные из contact/hero
+      rights: (lang === "ru" ? "Все права защищены" : "All rights reserved"),
+      privacy: (lang === "ru" ? "Политика конфиденциальности" : "Privacy Policy"),
+      // Берем соцсети из hero, так как они там точно есть
+      social_links: hero?.social_links ?? {}
     },
 
     // 10. BLOG (Статические заглушки)

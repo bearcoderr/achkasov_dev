@@ -1,0 +1,31 @@
+FROM node:20-alpine
+
+# Установка зависимостей для работы с Next.js
+RUN apk add --no-cache libc6-compat
+
+WORKDIR /app
+
+# Копирование package файлов
+COPY frontend/package*.json ./
+COPY frontend/pnpm-lock.yaml* ./
+
+# Установка зависимостей
+RUN \
+  if [ -f yarn.lock ]; then yarn --frozen-lockfile; \
+  elif [ -f package-lock.json ]; then npm ci; \
+  elif [ -f pnpm-lock.yaml ]; then corepack enable pnpm && pnpm i --frozen-lockfile; \
+  else echo "Lockfile not found." && exit 1; \
+  fi
+
+# Копирование исходников frontend
+COPY frontend .
+
+# Переменные окружения
+ENV NODE_ENV=development
+ENV NEXT_TELEMETRY_DISABLED=1
+
+# Порт
+EXPOSE 3000
+
+# Команда запуска (будет переопределена в docker-compose для dev режима)
+CMD ["npm", "run", "dev"]

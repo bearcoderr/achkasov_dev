@@ -26,7 +26,7 @@ export default function AdminSubmissions() {
     } else {
       const fetchSubmissions = async () => {
         try {
-          const response = await fetch("http://localhost:8001/admin/submissions")
+          const response = await fetch("http://localhost:8000/admin/submissions")
           const data = await response.json()
           const normalized = data.map(sub => ({
             ...sub,
