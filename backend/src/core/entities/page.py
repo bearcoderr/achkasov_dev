@@ -157,7 +157,7 @@ class ContactInfo(DomainEntity):
         }
 
 @dataclass
-class FooterInfo:
+class FooterInfo(DomainEntity):
     """Данные для Footer (подвал сайта)"""
     rights: LocalizedField  # "Все права защищены"
     privacy: LocalizedField  # "Политика конфиденциальности"

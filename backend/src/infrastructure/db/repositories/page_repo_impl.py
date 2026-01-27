@@ -4,13 +4,11 @@ from src.application.services.page_repository import IPageRepository
 from src.core.entities.page import (
     HeroData, AboutData, Service as ServiceEntity, Project as ProjectEntity,
     SkillCategory, CertificateEntity, Experience as ExperienceEntity,
-    PersonalFact, ContactInfo, PageData, LocalizedField, LocalizedList, FooterInfo
+    PersonalFact, ContactInfo, PageData, LocalizedField, LocalizedList, ContactInfo, FooterInfo
 )
 from src.core.exceptions.domain import EntityNotFoundException
-from src.infrastructure.db.static_data import (
-    CONTACT_INFO, FOOTER_INFO
-)
-from src.infrastructure.db.models import Hero, About, Service as ServiceModel, Project as ProjectModel, Experience as ExperienceModel, Skills, Certificate, Personal
+
+from src.infrastructure.db.models import Hero, About, Service as ServiceModel, Project as ProjectModel, Experience as ExperienceModel, Skills, Certificate, Personal, Settings
 
 from sqlalchemy.orm import Session
 
@@ -164,10 +162,27 @@ class PageRepositoryImpl(IPageRepository):
         ]
 
     def get_contact_info(self) -> ContactInfo:
-        return CONTACT_INFO
+        contact_row = self.db.query(Settings).first()
+        if not contact_row:
+            raise EntityNotFoundException("Hero not found")
+
+        return ContactInfo(
+                title=LocalizedField(ru=contact_row.title_text_footer_ru, en=contact_row.title_text_footer_en),
+                description=LocalizedField(ru=contact_row.desc_text_footer_ru, en=contact_row.desc_text_footer_en),
+                email=contact_row.email,
+                phone=contact_row.phone,
+                location=LocalizedField(ru=contact_row.location_ru, en=contact_row.location_en),
+            )
 
     def get_footer_info(self) -> FooterInfo:
-        return FOOTER_INFO
+        footer_row = self.db.query(Settings).first()
+        if not footer_row:
+            raise EntityNotFoundException("Footer info not found")
+
+        return FooterInfo(
+            rights=LocalizedField(ru=footer_row.footer_info_ru, en=footer_row.footer_info_en),
+            privacy=LocalizedField(ru="footer_row.privacy_policy_ru", en="footer_row.privacy_policy_en"),
+        )
 
 
     def get_all_page_data(self) -> PageData:

@@ -63,9 +63,9 @@ export default function Footer({ lang, data }: FooterProps) {
             {/* Копирайт и ссылки */}
             <div className="flex items-center gap-6 text-sm text-muted-foreground">
               <Link href="/privacy" className="transition-colors hover:text-foreground">
-                {data.privacy[lang]}
+                {data.privacy}
               </Link>
-              <span>© 2025 Aleksey Achkasov. {data.rights[lang]}.</span>
+              <span>© 2025 Aleksey Achkasov. {data.rights}.</span>
             </div>
           </div>
         </div>

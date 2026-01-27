@@ -71,10 +71,6 @@ class ContactInfoSchema(BaseModel):
     phone: str
     location: Dict[str, str]
 
-class ContactFormSchema(BaseModel):
-    name: str
-    email: str
-    message: str
 
 class PageDataSchema(BaseModel):
     hero: HeroDataSchema
@@ -87,4 +83,8 @@ class PageDataSchema(BaseModel):
     personal: List[PersonalFactSchema]
     contact: ContactInfoSchema
 
+class ContactFormSchema(BaseModel):
+    name: str
+    email: str
+    message: str
 

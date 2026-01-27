@@ -104,7 +104,7 @@ export default function Home() {
   }
 
   // Extract data (Деструктуризация с защитой, как мы делали ранее)
-  const { hero, about, services, projects, experience, skills, certificates, personal, contact } = pageData || {}
+  const { hero, about, services, projects, experience, skills, certificates, personal, contact, footer } = pageData || {}
 
   const currentLang = lang === "ru" ? "ru" : "en"
 
@@ -194,11 +194,9 @@ export default function Home() {
 
     // 9. FOOTER (для подвала)
     footer: {
-      // Если в PageData нет отдельного поля footer, используем заглушки или данные из contact/hero
-      rights: (lang === "ru" ? "Все права защищены" : "All rights reserved"),
-      privacy: (lang === "ru" ? "Политика конфиденциальности" : "Privacy Policy"),
-      // Берем соцсети из hero, так как они там точно есть
-      social_links: hero?.social_links ?? {}
+      rights: footer?.rights?.[currentLang] ?? (lang === "ru" ? "Все права защищены" : "All rights reserved"),
+      privacy: footer?.privacy?.[currentLang] ?? (lang === "ru" ? "Политика конфиденциальности" : "Privacy Policy"),
+      social_links: footer?.social_links ?? hero.social_links ?? {}
     },
 
     // 10. BLOG (Статические заглушки)
@@ -583,9 +581,9 @@ export default function Home() {
             </div>
 
             <div className="mt-8 rounded-2xl p-8 glass-card text-center">
-              <p className="mb-4 text-lg text-muted-foreground">{t.contact.description}</p>
+              <p className="mb-4 text-lg text-muted-foreground">{t.contact.title}</p>
               <p className="text-sm text-muted-foreground">
-                {lang === "ru" ? "Или воспользуйтесь формой обратной связи в правом нижнем углу" : "Or use the contact form in the bottom right corner"}
+                {t.contact.description}
               </p>
             </div>
           </div>
