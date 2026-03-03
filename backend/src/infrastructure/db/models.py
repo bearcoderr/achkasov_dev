@@ -1,4 +1,4 @@
-"""SQLAlchemy модели для PostgreSQL"""
+"""SQLAlchemy модели для PostgreSQL - ОБНОВЛЁННАЯ ВЕРСИЯ"""
 from sqlalchemy import Column, Integer, String, Text, JSON, DateTime, Boolean
 from sqlalchemy.sql import func
 from src.infrastructure.db.base import Base
@@ -8,30 +8,31 @@ class LoginRequest(Base):
     __tablename__ = "login_admin"
 
     id = Column(Integer, primary_key=True, index=True)
-    username = Column(String, unique=True, nullable=False, index=True)
-    hashed_password = Column(String, nullable=False)
+    username = Column(String, unique=True, nullable=True, index=True)
+    hashed_password = Column(String, nullable=True)
+
 
 class Hero(Base):
-
     """Главный экран"""
     __tablename__ = "hero"
+
     id = Column(Integer, primary_key=True, index=True)
-    image_url = Column(String(500), nullable=False)
+    image_url = Column(String(500), nullable=True)
 
-    """RU Version"""
-    title_ru = Column(String(255), nullable=False)
-    subtitle_ru = Column(String(255), nullable=False)
-    description_ru = Column(String(500), nullable=False)
-    button_ru = Column(String(255), nullable=False)
+    # RU Version
+    title_ru = Column(String(255), nullable=True)
+    subtitle_ru = Column(String(255), nullable=True)
+    description_ru = Column(String(500), nullable=True)
+    button_ru = Column(String(255), nullable=True)
 
-
-    """ENG Version"""
-    title_en = Column(String(255), nullable=False)
-    subtitle_eng = Column(String(255), nullable=False)
-    description_eng = Column(String(500), nullable=False)
-    button_eng = Column(String(255), nullable=False)
+    # EN Version (ИСПРАВЛЕНО: было _eng, теперь _en)
+    title_en = Column(String(255), nullable=True)
+    subtitle_en = Column(String(255), nullable=True)  # ← ИЗМЕНЕНО
+    description_en = Column(String(500), default=True, nullable=True)  # ← ИЗМЕНЕНО
+    button_en = Column(String(255), nullable=True)  # ← ИЗМЕНЕНО
 
     social_links = Column(JSON, nullable=True)
+
 
 class About(Base):
     """Блок обо мне"""
@@ -39,13 +40,13 @@ class About(Base):
 
     id = Column(Integer, primary_key=True, index=True)
 
-    """RU Version"""
-    title_ru = Column(String(255), nullable=False)
-    description_ru = Column(String(500), nullable=False)
+    # RU Version
+    title_ru = Column(String(255), nullable=True)
+    description_ru = Column(String(500), nullable=True)
 
-    """ENG Version"""
-    title_en = Column(String(255), nullable=False)
-    description_eng = Column(String(500), nullable=False)
+    # EN Version (ИСПРАВЛЕНО: было _eng, теперь _en)
+    title_en = Column(String(255), nullable=True)
+    description_en = Column(String(500), default=True, nullable=True)  # ← ИЗМЕНЕНО
 
 
 class Project(Base):
@@ -54,21 +55,21 @@ class Project(Base):
 
     id = Column(Integer, primary_key=True, index=True)
 
-    """RU Version"""
-    title_ru = Column(String(255), nullable=False)
-    description_ru = Column(Text, nullable=False)
+    # RU Version
+    title_ru = Column(String(255), nullable=True)
+    description_ru = Column(Text, nullable=True)
 
-    """ENG Version"""
-    title_en = Column(String(255), nullable=False)
-    description_en = Column(Text, nullable=False)
+    # EN Version
+    title_en = Column(String(255), nullable=True)
+    description_en = Column(Text, nullable=True)
 
-    """Last Column"""
-    tech = Column(JSON, nullable=False)  # ["Django", "PostgreSQL", ...]
+    # Остальные поля
+    tech = Column(JSON, nullable=True)  # ["Django", "PostgreSQL", ...]
     demo_url = Column(String(500), nullable=True)
     github_url = Column(String(500), nullable=True)
     image_url = Column(String(500), nullable=True)
-    order = Column(Integer, default=0)  # Порядок отображения
-    is_active = Column(Boolean, default=True)
+    order = Column(Integer, default=0, nullable=True)  # Порядок отображения
+    is_active = Column(Boolean, default=True, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
@@ -79,20 +80,20 @@ class Service(Base):
 
     id = Column(Integer, primary_key=True, index=True)
 
-    """RU Version"""
-    title_ru = Column(String(255), nullable=False)
-    description_ru = Column(Text, nullable=False)
-    details_ru = Column(JSON, nullable=False)  # ["Пункт 1", "Пункт 2", ...]
+    # RU Version
+    title_ru = Column(String(255), nullable=True)
+    description_ru = Column(Text, nullable=True)
+    details_ru = Column(JSON, nullable=True)  # Список деталей или текст
 
-    """ENG Version"""
-    title_en = Column(String(255), nullable=False)
-    description_en = Column(Text, nullable=False)
-    details_en = Column(JSON, nullable=False)
+    # EN Version
+    title_en = Column(String(255), nullable=True)
+    description_en = Column(Text, nullable=True)
+    details_en = Column(JSON, nullable=True)
 
-    """Last Column"""
+    # Остальные поля
     icon = Column(String(100), nullable=True)
-    order = Column(Integer, default=0)
-    is_active = Column(Boolean, default=True)
+    order = Column(Integer, default=0, nullable=True)
+    is_active = Column(Boolean, default=True, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
@@ -103,21 +104,21 @@ class Experience(Base):
 
     id = Column(Integer, primary_key=True, index=True)
 
-    """RU Version"""
-    period_ru = Column(String(100), nullable=False)
-    position_ru = Column(String(255), nullable=False)
-    company_ru = Column(String(255), nullable=False)
-    description_ru = Column(Text, nullable=False)
+    # RU Version
+    period_ru = Column(String(100), nullable=True)  # Используется как "year" на фронте
+    company_ru = Column(String(255), nullable=True)
+    position_ru = Column(String(255), nullable=True)
+    description_ru = Column(Text, nullable=True)
 
-    """ENG Version"""
-    period_en = Column(String(100), nullable=False)
-    company_en = Column(String(255), nullable=False)
-    position_en = Column(String(255), nullable=False)
-    description_en = Column(Text, nullable=False)
+    # EN Version
+    period_en = Column(String(100), nullable=True)
+    company_en = Column(String(255), nullable=True)
+    position_en = Column(String(255), nullable=True)
+    description_en = Column(Text, nullable=True)
 
-    """Last Column"""
-    order = Column(Integer, default=0)
-    is_active = Column(Boolean, default=True)
+    # Остальные поля
+    order = Column(Integer, default=0, nullable=True)
+    is_active = Column(Boolean, default=True, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
@@ -128,93 +129,92 @@ class Certificate(Base):
 
     id = Column(Integer, primary_key=True, index=True)
 
-    """RU Version"""
-    title_ru = Column(String(255), nullable=False)
-    provider = Column(String(255), nullable=False)
-    description_en = Column(Text, nullable=False)
+    # RU Version
+    title_ru = Column(String(255), nullable=True)
+    description_ru = Column(Text, nullable=True)
 
-    """ENG Version"""
-    title_en = Column(String(255), nullable=False)
-    description_ru = Column(Text, nullable=False)
+    # EN Version
+    title_en = Column(String(255), nullable=True)
+    description_en = Column(Text, nullable=True)
 
-    """Last Column"""
-    image_url = Column(String(500), nullable=False)
-    issue_date = Column(String(50), nullable=False)
+    # Остальные поля
+    provider = Column(String(255), nullable=True)
+    image_url = Column(String(500), nullable=True)
+    issue_date = Column(String(50), nullable=True)
     credential_url = Column(String(500), nullable=True)
-    order = Column(Integer, default=0)
-    is_active = Column(Boolean, default=True)
+    order = Column(Integer, default=0, nullable=True)
+    is_active = Column(Boolean, default=True, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
+
 class Skills(Base):
-    """Навыки"""
+    """Навыки по категориям"""
     __tablename__ = "skills"
 
     id = Column(Integer, primary_key=True, index=True)
 
-    """RU Version"""
-    title_ru = Column(String(255), nullable=False)
-    listSkills_ru = Column(JSON, nullable=False)
+    # RU Version
+    title_ru = Column(String(255), nullable=True)
+    listSkills_ru = Column(JSON, nullable=True)  # Список навыков
 
-    """ENG Version"""
-    title_en = Column(String(255), nullable=False)
-    listSkills_en = Column(JSON, nullable=False)
+    # EN Version
+    title_en = Column(String(255), nullable=True)
+    listSkills_en = Column(JSON, nullable=True)
+
 
 class Personal(Base):
-    """Немного обо мне"""
-    __tablename__ = "Pesonal_Fast"
+    """Личные факты"""
+    __tablename__ = "personal_facts"  # Исправлено: было "Pesonal_Fast"
 
     id = Column(Integer, primary_key=True, index=True)
-    emoji = Column(String(255), nullable=False)
+    emoji = Column(String(255), nullable=True)
 
-    """RU Version"""
-    title_ru = Column(String(255), nullable=False)
-    description_ru = Column(Text, nullable=False)
+    # RU Version
+    title_ru = Column(String(255), nullable=True)
+    description_ru = Column(Text, nullable=True)
 
-    """ENG Version"""
-    title_en = Column(String(255), nullable=False)
-    description_en = Column(Text, nullable=False)
+    # EN Version
+    title_en = Column(String(255), nullable=True)
+    description_en = Column(Text, nullable=True)
+
 
 class ContactMessage(Base):
     """Модель сообщения из контактной формы"""
     __tablename__ = "contact_messages"
 
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(255), nullable=False)
-    email = Column(String(255), nullable=False)
-    phone = Column(String, nullable=True)
-    message = Column(Text, nullable=False)
-    is_read = Column(Boolean, default=False)
-    page_source = Column(String, nullable=True)
+    name = Column(String(255), nullable=True)
+    email = Column(String(255), nullable=True)
+    phone = Column(String(50), nullable=True)
+    message = Column(Text, nullable=True)
+    is_read = Column(Boolean, default=False, nullable=True)
+    page_source = Column(String(100), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
 class Settings(Base):
-    """Модель настроек (Hero, About, Contact Info)"""
+    """Модель настроек (контакты, футер и т.д.)"""
     __tablename__ = "settings"
 
     id = Column(Integer, primary_key=True, index=True)
-    key = Column(String(100), unique=True, nullable=False, index=True)
-    value = Column(JSON, nullable=False)  # Хранит весь объект в JSON
+    key = Column(String(100), unique=True, nullable=True, index=True)
+    value = Column(JSON, nullable=True)  # Хранит весь объект в JSON
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
-    email = Column(String(100), unique=True, nullable=False, index=True)
-    phone = Column(String(100), unique=True, nullable=False, index=True)
+    # Контактная информация
+    email = Column(String(100), nullable=True)
+    phone = Column(String(100), nullable=True)
 
-    """RU Version"""
-    location_ru = Column(String(100), unique=True, nullable=False, index=True)
-    title_text_footer_ru = Column(String(500), unique=True, nullable=False, index=True)
-    desc_text_footer_ru = Column(String(500), unique=True, nullable=False, index=True)
-    footer_info_ru = Column(String(500), unique=True, nullable=False, index=True)
+    # RU Version
+    location_ru = Column(String(100), nullable=True)
+    title_text_footer_ru = Column(String(500), nullable=True)
+    desc_text_footer_ru = Column(String(500), nullable=True)
+    footer_info_ru = Column(String(500), nullable=True)
 
-    """ENG Version"""
-    location_en = Column(String(100), unique=True, nullable=False, index=True)
-    title_text_footer_en = Column(String(500), unique=True, nullable=False, index=True)
-    desc_text_footer_en = Column(String(500), unique=True, nullable=False, index=True)
-    footer_info_en = Column(String(500), unique=True, nullable=False, index=True)
-
-
-
-
-
+    # EN Version
+    location_en = Column(String(100), nullable=True)
+    title_text_footer_en = Column(String(500), nullable=True)
+    desc_text_footer_en = Column(String(500), nullable=True)
+    footer_info_en = Column(String(500), nullable=True)
 
