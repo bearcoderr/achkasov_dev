@@ -26,21 +26,6 @@ class UpdateProjectRequest(BaseModel):
     demo_url: Optional[str] = None
     github_url: Optional[str] = None
 
-
-class ProjectResponse(BaseModel):
-    """Ответ с данными проекта"""
-    title: Dict[str, str]
-    description: Dict[str, str]
-    tech: List[str]
-    demo_url: Optional[str] = None
-    github_url: Optional[str] = None
-
-
-class AboutResponse(BaseModel):
-    """Ответ с данными раздела О себе"""
-    title: Dict[str, str]
-    text: Dict[str, str]
-
 class SubmissionSchema(BaseModel):
     id: int
     name: str
@@ -51,11 +36,121 @@ class SubmissionSchema(BaseModel):
     is_read: bool
     page_source: Optional[str] = None
 
+
+
+# ============= SCHEMAS =============
+
+
 class LoginRequest(BaseModel):
-    """Вход запрос"""
     username: str
     password: str
 
 class LoginResponse(BaseModel):
-    """Вход ответ"""
     token: str
+
+class LocalizedData(BaseModel):
+    ru: str
+    en: str
+
+# Hero Schemas
+class HeroUpdateRequest(BaseModel):
+    title: LocalizedData
+    subtitle: LocalizedData
+    description: LocalizedData
+    cta: LocalizedData
+    image: str
+
+class HeroResponse(BaseModel):
+    id: int
+    title: LocalizedData
+    subtitle: LocalizedData
+    description: LocalizedData
+    cta: LocalizedData
+    image: str
+
+# About Schemas
+class AboutUpdateRequest(BaseModel):
+    title: LocalizedData
+    description: LocalizedData
+
+class AboutResponse(BaseModel):
+    id: int
+    title: LocalizedData
+    description: LocalizedData
+
+# Service Schemas
+class ServiceCreateRequest(BaseModel):
+    title: LocalizedData
+    description: LocalizedData
+    details: LocalizedData
+    icon: str
+
+class ServiceUpdateRequest(BaseModel):
+    title: LocalizedData
+    description: LocalizedData
+    details: LocalizedData
+    icon: str
+
+class ServiceResponse(BaseModel):
+    id: int
+    title: LocalizedData
+    description: LocalizedData
+    details: LocalizedData
+    icon: str
+
+# Project Schemas
+class ProjectCreateRequest(BaseModel):
+    title: LocalizedData
+    description: LocalizedData
+    image: str
+    tags: List[str]
+    link: str
+
+class ProjectUpdateRequest(BaseModel):
+    title: LocalizedData
+    description: LocalizedData
+    image: str
+    tags: List[str]
+    link: str
+
+class ProjectResponse(BaseModel):
+    id: int
+    title: LocalizedData
+    description: LocalizedData
+    image: str
+    tags: List[str]
+    link: str
+
+# Experience Schemas
+class ExperienceCreateRequest(BaseModel):
+    year: str
+    company: LocalizedData
+    position: LocalizedData
+    description: LocalizedData
+
+class ExperienceUpdateRequest(BaseModel):
+    year: str
+    company: LocalizedData
+    position: LocalizedData
+    description: LocalizedData
+
+class ExperienceResponse(BaseModel):
+    id: int
+    year: str
+    company: LocalizedData
+    position: LocalizedData
+    description: LocalizedData
+
+# Skills Schemas
+class SkillCategoryCreateRequest(BaseModel):
+    name: LocalizedData
+    skills: List[str]
+
+class SkillCategoryUpdateRequest(BaseModel):
+    name: LocalizedData
+    skills: List[str]
+
+class SkillCategoryResponse(BaseModel):
+    id: int
+    name: LocalizedData
+    skills: List[str]

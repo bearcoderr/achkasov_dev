@@ -166,10 +166,10 @@ export default function Home() {
 
     // 6. SKILLS SECTION (Список категорий)
     skills: {
-      title: skills[0]?.name?.[currentLang] ? (lang === "ru" ? "Навыки" : "Skills") : (lang === "ru" ? "Навыки" : "Skills"), // Заглушка
+      title: skills[0]?.name?.[currentLang] ? (lang === "ru" ? "Навыки" : "Skills") : (lang === "ru" ? "Навыки" : "Skills"),
       categories: skills.map(category => ({
         name: category.name?.[currentLang],
-        items: category.items?.[currentLang],
+        items: category.items?.[currentLang] ?? [], // ← ДОБАВЬ ?? []
       })),
     },
 

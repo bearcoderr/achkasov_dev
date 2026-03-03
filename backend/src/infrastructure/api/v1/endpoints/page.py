@@ -1,44 +1,25 @@
-"""API endpoints для фронтенда (public)"""
+"""API endpoints для фронтенда (public) - ПОЛНАЯ ВЕРСИЯ"""
 from fastapi import APIRouter, Depends, HTTPException
 from typing import List
 from datetime import datetime
 from sqlalchemy.orm import Session
 from src.infrastructure.db.database import get_db
-from src.infrastructure.db.models import ContactMessage
-
-from src.application.use_cases.page.get_page_data import (
-    GetPageDataUseCase, GetHeroUseCase, GetAboutUseCase,
-    GetServicesUseCase, GetServiceByIdUseCase,
-    GetProjectsUseCase, GetProjectByIdUseCase,
-    GetExperienceUseCase, GetSkillsUseCase,
-    GetCertificatesUseCase, GetPersonalFactsUseCase,
-    GetContactInfoUseCase
+from src.infrastructure.db.models import (
+    Hero, About, Service, Project,
+    Experience, Skills, ContactMessage, Settings, Personal, Certificate
 )
-from src.infrastructure.api.v1.schemas.page import (
-    HeroDataSchema, AboutDataSchema, ServiceSchema,
-    ProjectSchema, ExperienceSchema, SkillCategorySchema,
-    CertificateSchema, PersonalFactSchema, ContactInfoSchema,
-    PageDataSchema, ContactFormSchema
-)
-from src.infrastructure.api.dependencies import (
-    get_page_data_use_case, get_hero_use_case, get_about_use_case,
-    get_services_use_case, get_service_by_id_use_case,
-    get_projects_use_case, get_project_by_id_use_case,
-    get_experience_use_case, get_skills_use_case,
-    get_certificates_use_case, get_personal_facts_use_case,
-    get_contact_info_use_case
-)
-from src.core.exceptions.domain import EntityNotFoundException
 
 router = APIRouter(prefix="/api", tags=["Portfolio"])
 
+
+# ============= ROOT =============
 
 @router.get("/")
 def root():
     """Список доступных endpoints"""
     return {
         "message": "Portfolio API",
-        "version": "1.0.0",
+        "version": "2.0.0",
         "endpoints": {
             "hero": "/api/hero",
             "about": "/api/about",
@@ -46,116 +27,257 @@ def root():
             "projects": "/api/projects",
             "experience": "/api/experience",
             "skills": "/api/skills",
-            "certificates": "/api/certificates",
+            "contact": "/api/contact/send",
             "personal": "/api/personal",
-            "contact": "/api/contact",
             "page_data": "/api/page-data"
         }
     }
 
 
-@router.get("/hero", response_model=HeroDataSchema)
-def get_hero(use_case: GetHeroUseCase = Depends(get_hero_use_case)):
+# ============= HERO =============
+
+@router.get("/hero")
+def get_hero(db: Session = Depends(get_db)):
     """Получить данные hero секции"""
-    hero = use_case.execute()
-    return hero
+    hero = db.query(Hero).first()
+
+    if not hero:
+        raise HTTPException(status_code=404, detail="Hero data not found")
+
+    return {
+        "greeting": {"ru": "Привет, я", "en": "Hi, I'm"},
+        "img": hero.image_url,
+        "name": hero.title_ru,
+        "title": {"ru": hero.subtitle_ru, "en": hero.subtitle_en},
+        "subtitle": {"ru": hero.description_ru, "en": hero.description_en},
+        "cv_url": "/resume.pdf",
+        "social_links": hero.social_links or {}
+    }
 
 
-@router.get("/about", response_model=AboutDataSchema)
-def get_about(use_case: GetAboutUseCase = Depends(get_about_use_case)):
+# ============= ABOUT =============
+
+@router.get("/about")
+def get_about(db: Session = Depends(get_db)):
     """Получить информацию о себе"""
-    about = use_case.execute()
-    return about.to_dict()
+    about = db.query(About).first()
+
+    if not about:
+        raise HTTPException(status_code=404, detail="About data not found")
+
+    return {
+        "title": {"ru": about.title_ru, "en": about.title_en},
+        "description": {"ru": about.description_ru, "en": about.description_en}
+    }
 
 
-@router.get("/services", response_model=List[ServiceSchema])
-def get_services(use_case: GetServicesUseCase = Depends(get_services_use_case)):
-    """Получить список услуг"""
-    services = use_case.execute()
-    return [s.to_dict() for s in services]
+# ============= PERSONAL =============
 
-
-@router.get("/services/{service_id}", response_model=ServiceSchema)
-def get_service(
-        service_id: int,
-        use_case: GetServiceByIdUseCase = Depends(get_service_by_id_use_case)
-):
-    """Получить конкретную услугу"""
-    try:
-        service = use_case.execute(service_id)
-        return service.to_dict()
-    except EntityNotFoundException as e:
-        raise HTTPException(status_code=404, detail=str(e))
-
-
-@router.get("/projects", response_model=List[ProjectSchema])
-def get_projects(use_case: GetProjectsUseCase = Depends(get_projects_use_case)):
-    """Получить список проектов"""
-    projects = use_case.execute()
-    return [p.to_dict() for p in projects]
-
-
-@router.get("/projects/{project_id}", response_model=ProjectSchema)
-def get_project(
-        project_id: int,
-        use_case: GetProjectByIdUseCase = Depends(get_project_by_id_use_case)
-):
-    """Получить конкретный проект"""
-    try:
-        project = use_case.execute(project_id)
-        return project.to_dict()
-    except EntityNotFoundException as e:
-        raise HTTPException(status_code=404, detail=str(e))
-
-
-@router.get("/experience", response_model=List[ExperienceSchema])
-def get_experience(use_case: GetExperienceUseCase = Depends(get_experience_use_case)):
-    """Получить опыт работы"""
-    experience = use_case.execute()
-    return [e.to_dict() for e in experience]
-
-
-@router.get("/skills", response_model=List[SkillCategorySchema])
-def get_skills(use_case: GetSkillsUseCase = Depends(get_skills_use_case)):
-    """Получить навыки"""
-    skills = use_case.execute()
-    return [s.to_dict() for s in skills]
-
-
-@router.get("/certificates", response_model=List[CertificateSchema])
-def get_certificates(use_case: GetCertificatesUseCase = Depends(get_certificates_use_case)):
-    """Получить сертификаты"""
-    certificates = use_case.execute()
-    return [c.to_dict() for c in certificates]
-
-
-@router.get("/personal", response_model=List[PersonalFactSchema])
-def get_personal_facts(use_case: GetPersonalFactsUseCase = Depends(get_personal_facts_use_case)):
+@router.get("/personal")
+def get_personal_facts(db: Session = Depends(get_db)):
     """Получить личные факты"""
-    facts = use_case.execute()
-    return [f.to_dict() for f in facts]
+    facts = db.query(Personal).all()
+    if not facts:
+        raise HTTPException(status_code=404, detail="Personal data not found")
+
+    return [
+        {
+            "id": str(fact.id),
+            "emoji": fact.emoji,
+            "title": {"ru": fact.title_ru, "en": fact.title_en},
+            "description": {"ru": fact.description_ru, "en": fact.description_en}
+        }
+        for fact in facts
+    ]
 
 
-@router.get("/contact", response_model=ContactInfoSchema)
-def get_contact_info(use_case: GetContactInfoUseCase = Depends(get_contact_info_use_case)):
+# ============= SERVICES =============
+
+@router.get("/services")
+def get_services(db: Session = Depends(get_db)):
+    """Получить список услуг"""
+    services = db.query(Service).filter(
+        Service.is_active == True
+    ).order_by(Service.order).all()
+
+    return [{
+        "id": str(s.id),
+        "title": {"ru": s.title_ru, "en": s.title_en},
+        "description": {"ru": s.description_ru, "en": s.description_en},
+        "details": {"ru": s.details_ru or [], "en": s.details_en or []},
+        "icon": s.icon or "🚀"
+    } for s in services]
+
+
+@router.get("/services/{service_id}")
+def get_service(service_id: int, db: Session = Depends(get_db)):
+    """Получить конкретную услугу"""
+    service = db.query(Service).filter(
+        Service.id == service_id,
+        Service.is_active == True
+    ).first()
+
+    if not service:
+        raise HTTPException(status_code=404, detail="Service not found")
+
+    return {
+        "id": str(service.id),
+        "title": {"ru": service.title_ru, "en": service.title_en},
+        "description": {"ru": service.description_ru, "en": service.description_en},
+        "details": {"ru": service.details_ru or [], "en": service.details_en or []},
+        "icon": service.icon
+    }
+
+
+# ============= PROJECTS =============
+
+@router.get("/projects")
+def get_projects(db: Session = Depends(get_db)):
+    """Получить список проектов"""
+    projects = db.query(Project).filter(
+        Project.is_active == True
+    ).order_by(Project.order).all()
+
+    return [{
+        "id": str(p.id),
+        "title": {"ru": p.title_ru, "en": p.title_en},
+        "description": {"ru": p.description_ru, "en": p.description_en},
+        "image": p.image_url or "",
+        "tags": p.tech or [],
+        "link": p.demo_url or "#"
+    } for p in projects]
+
+
+@router.get("/projects/{project_id}")
+def get_project(project_id: int, db: Session = Depends(get_db)):
+    """Получить конкретный проект"""
+    project = db.query(Project).filter(
+        Project.id == project_id,
+        Project.is_active == True
+    ).first()
+
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    return {
+        "id": str(project.id),
+        "title": {"ru": project.title_ru, "en": project.title_en},
+        "description": {"ru": project.description_ru, "en": project.description_en},
+        "image": project.image_url,
+        "tags": project.tech,
+        "link": project.demo_url
+    }
+
+
+# ============= EXPERIENCE =============
+
+@router.get("/experience")
+def get_experience(db: Session = Depends(get_db)):
+    """Получить опыт работы"""
+    experiences = db.query(Experience).filter(
+        Experience.is_active == True
+    ).order_by(Experience.order).all()
+
+    return [{
+        "id": str(e.id),
+        "year": e.period_ru,
+        "company": {"ru": e.company_ru, "en": e.company_en},
+        "position": {"ru": e.position_ru, "en": e.position_en},
+        "description": {"ru": e.description_ru, "en": e.description_en}
+    } for e in experiences]
+
+
+# ============= SKILLS =============
+
+@router.get("/skills")
+def get_skills(db: Session = Depends(get_db)):
+    """Получить навыки по категориям"""
+    skills = db.query(Skills).all()
+
+    return [{
+        "id": str(s.id),
+        "name": {"ru": s.title_ru, "en": s.title_en},
+        "items": {
+            "ru": s.listSkills_ru or [],
+            "en": s.listSkills_en or s.listSkills_ru or []
+        }
+    } for s in skills]
+
+
+# ============= CERTIFICATES =============
+
+@router.get("/certificates")
+def get_certificates(db: Session = Depends(get_db)):
+    """Получить сертификаты"""
+    certificates = db.query(Certificate).filter(
+        Certificate.is_active == True
+    ).order_by(Certificate.order).all()
+
+    return [{
+        "id": str(c.id),
+        "title": {"ru": c.title_ru, "en": c.title_en},
+        "provider": c.provider,
+        "description": {"ru": c.description_ru, "en": c.description_en},
+        "image_url": c.image_url,
+        "issue_date": c.issue_date
+    } for c in certificates]
+
+
+# ============= SETTINGS / CONTACT INFO =============
+
+@router.get("/contact-info")
+def get_contact_info(db: Session = Depends(get_db)):
     """Получить контактную информацию"""
-    contact = use_case.execute()
-    return contact.to_dict()
+    settings = db.query(Settings).first()
 
+    if not settings:
+        raise HTTPException(status_code=404, detail="Settings not found")
+
+    return {
+        "email": settings.email,
+        "phone": settings.phone,
+        "location": {"ru": settings.location_ru, "en": settings.location_en},
+        "title": {"ru": settings.title_text_footer_ru, "en": settings.title_text_footer_en},
+        "description": {"ru": settings.desc_text_footer_ru, "en": settings.desc_text_footer_en}
+    }
+
+
+@router.get("/footer-info")
+def get_footer_info(db: Session = Depends(get_db)):
+    """Получить информацию для футера"""
+    settings = db.query(Settings).first()
+    hero = db.query(Hero).first()
+
+    if not settings:
+        raise HTTPException(status_code=404, detail="Settings not found")
+
+    return {
+        "rights": {"ru": settings.footer_info_ru, "en": settings.footer_info_en},
+        "privacy": {"ru": "Политика конфиденциальности", "en": "Privacy Policy"},
+        "social_links": hero.social_links if hero else {}
+    }
+
+
+# ============= CONTACT =============
 
 @router.post("/contact/send")
-def send_contact_form(form: ContactFormSchema, db: Session = Depends(get_db)):
+def send_contact_form(
+    name: str,
+    email: str,
+    message: str,
+    phone: str = None,
+    db: Session = Depends(get_db)
+):
     """Отправить форму обратной связи и сохранить в БД"""
 
-    # Создаём объект модели
     contact = ContactMessage(
-        name=form.name,
-        email=form.email,
-        message=form.message,
+        name=name,
+        email=email,
+        message=message,
+        phone=phone,
         created_at=datetime.now()
     )
 
-    # Добавляем в сессию и сохраняем
     db.add(contact)
     db.commit()
     db.refresh(contact)
@@ -168,9 +290,127 @@ def send_contact_form(form: ContactFormSchema, db: Session = Depends(get_db)):
     }
 
 
+# ============= PAGE DATA (ALL IN ONE) =============
 
-@router.get("/page-data", response_model=PageDataSchema)
-def get_full_page_data(use_case: GetPageDataUseCase = Depends(get_page_data_use_case)):
-    """Получить все данные страницы одним запросом (для оптимизации)"""
-    page_data = use_case.execute()
-    return page_data.to_dict()
+@router.get("/page-data")
+def get_full_page_data(db: Session = Depends(get_db)):
+    """Получить все данные страницы одним запросом"""
+
+    # Hero
+    hero = db.query(Hero).first()
+    hero_data = {
+        "greeting": {"ru": "Привет, я", "en": "Hi, I'm"},
+        "img": hero.image_url if hero else "",
+        "name": hero.title_ru if hero else "",
+        "title": {"ru": hero.subtitle_ru, "en": hero.subtitle_en} if hero else {"ru": "", "en": ""},
+        "subtitle": {"ru": hero.description_ru, "en": hero.description_en} if hero else {"ru": "", "en": ""},
+        "cv_url": "/resume.pdf",
+        "social_links": hero.social_links if hero else {}
+    } if hero else None
+
+    # About
+    about = db.query(About).first()
+    about_data = {
+        "title": {"ru": about.title_ru, "en": about.title_en},
+        "text": {"ru": about.description_ru, "en": about.description_en}
+    } if about else None
+
+    # Personal Facts
+    facts = db.query(Personal).all()
+    personal_data = [{
+        "emoji": fact.emoji,
+        "title": {"ru": fact.title_ru, "en": fact.title_en},
+        "description": {"ru": fact.description_ru, "en": fact.description_en}
+    } for fact in facts]
+
+    # Services
+    services = db.query(Service).filter(Service.is_active == True).order_by(Service.order).all()
+    services_data = [{
+        "title": {"ru": s.title_ru, "en": s.title_en},
+        "description": {"ru": s.description_ru, "en": s.description_en},
+        "details": {"ru": s.details_ru or [], "en": s.details_en or []},
+        "icon": s.icon or "🚀"
+    } for s in services]
+
+    # Projects
+    projects = db.query(Project).filter(Project.is_active == True).order_by(Project.order).all()
+    projects_data = [{
+        "title": {"ru": p.title_ru, "en": p.title_en},
+        "description": {"ru": p.description_ru, "en": p.description_en},
+        "tech": p.tech or [],
+        "demo_url": p.demo_url,
+        "github_url": p.github_url
+    } for p in projects]
+
+    # Experience
+    experiences = db.query(Experience).filter(Experience.is_active == True).order_by(Experience.order).all()
+    experience_data = [{
+        "period": {"ru": e.period_ru, "en": e.period_en},
+        "position": {"ru": e.position_ru, "en": e.position_en},
+        "company": e.company_ru,
+        "description": {"ru": e.description_ru, "en": e.description_en}
+    } for e in experiences]
+
+    # Skills - ИСПРАВЛЕНО
+    skills = db.query(Skills).all()
+    skills_data = [{
+        "name": {"ru": s.title_ru, "en": s.title_en},
+        "items": {
+            "ru": s.listSkills_ru or [],
+            "en": s.listSkills_en or s.listSkills_ru or []
+        }
+    } for s in skills]
+
+    # Certificates
+    certificates = db.query(Certificate).filter(Certificate.is_active == True).order_by(Certificate.order).all()
+    certificates_data = [{
+        "title": {"ru": c.title_ru, "en": c.title_en},
+        "provider": c.provider,
+        "description": {"ru": c.description_ru, "en": c.description_en},
+        "image_url": c.image_url,
+        "issue_date": c.issue_date
+    } for c in certificates]
+
+    # Settings (Contact & Footer)
+    settings = db.query(Settings).first()
+
+    # Contact Info
+    contact_data = {
+        "email": settings.email,
+        "phone": settings.phone,
+        "location": {
+            "ru": settings.location_ru,
+            "en": settings.location_en
+        },
+        "title": {
+            "ru": settings.title_text_footer_ru if settings else "Контакты",
+            "en": settings.title_text_footer_en if settings else "Contact"
+        },
+        "description": {
+            "ru": settings.desc_text_footer_ru,
+            "en": settings.desc_text_footer_en
+        }
+    }
+
+    # Footer Info
+    footer_data = {
+        "rights": {
+            "ru": settings.footer_info_ru if settings else "Все права защищены",
+            "en": settings.footer_info_en if settings else "All rights reserved"
+        },
+        "privacy": {"ru": "Политика конфиденциальности", "en": "Privacy Policy"},
+        "social_links": hero.social_links if hero else {}
+    }
+
+    return {
+        "hero": hero_data,
+        "about": about_data,
+        "personal": personal_data,
+        "services": services_data,
+        "projects": projects_data,
+        "experience": experience_data,
+        "skills": skills_data,
+        "certificates": certificates_data,
+        "contact": contact_data,
+        "footer": footer_data
+    }
