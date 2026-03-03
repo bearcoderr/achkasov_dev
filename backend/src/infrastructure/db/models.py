@@ -28,7 +28,7 @@ class Hero(Base):
     # EN Version (ИСПРАВЛЕНО: было _eng, теперь _en)
     title_en = Column(String(255), nullable=True)
     subtitle_en = Column(String(255), nullable=True)  # ← ИЗМЕНЕНО
-    description_en = Column(String(500), default=True, nullable=True)  # ← ИЗМЕНЕНО
+    description_en = Column(String(500), nullable=True)
     button_en = Column(String(255), nullable=True)  # ← ИЗМЕНЕНО
 
     social_links = Column(JSON, nullable=True)
@@ -46,7 +46,7 @@ class About(Base):
 
     # EN Version (ИСПРАВЛЕНО: было _eng, теперь _en)
     title_en = Column(String(255), nullable=True)
-    description_en = Column(String(500), default=True, nullable=True)  # ← ИЗМЕНЕНО
+    description_en = Column(String(500), nullable=True)
 
 
 class Project(Base):

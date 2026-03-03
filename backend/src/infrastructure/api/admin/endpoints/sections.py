@@ -7,6 +7,8 @@ import jwt
 import datetime
 from passlib.context import CryptContext
 
+import os
+
 from src.infrastructure.db.database import get_db
 from src.infrastructure.db.models import (
     LoginRequest as LoginRequestModel,
@@ -26,7 +28,7 @@ from src.infrastructure.api.admin.schemas.admin_schemas import (
 )
 
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
-SECRET_KEY = "super-secret-key"  # ВАЖНО: переместить в .env
+SECRET_KEY = os.getenv("JWT_SECRET_KEY", "CHANGE-ME-IN-PRODUCTION")
 ALGORITHM = "HS256"
 
 router = APIRouter(prefix="/admin", tags=["Admin"])

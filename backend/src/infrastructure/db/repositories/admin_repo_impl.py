@@ -1,4 +1,6 @@
-# Реализация IAdminRepository (запись)
+# TODO: DEPRECATED — admin endpoints write to DB directly via sections.py
+# This in-memory implementation is no longer used in production.
+# Will be removed in Stage 2 when admin repo is fully DB-backed.
 
 """Реализация репозитория для изменения данных (админка)"""
 from src.application.services.admin_repository import IAdminRepository
@@ -8,7 +10,8 @@ from src.infrastructure.db.static_data import ABOUT_DATA, PROJECTS
 
 
 class AdminRepositoryImpl(IAdminRepository):
-    """Реализация IAdminRepository с использованием статических данных"""
+    """DEPRECATED: Реализация IAdminRepository с использованием статических данных.
+    Фактические admin endpoints используют SQLAlchemy напрямую (sections.py)."""
 
     def update_about(self, about: AboutData) -> AboutData:
         """

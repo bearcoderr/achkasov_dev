@@ -3,7 +3,7 @@ from .base import LocalizedField, DomainEntity
 from .page import (
     HeroData, AboutData, Service, Project,
     Experience, SkillCategory, CertificateEntity,
-    PersonalFact, ContactInfo, PageData
+    PersonalFact, ContactInfo, PageData, FooterInfo
 )
 from .contact import ContactForm
 
@@ -20,5 +20,6 @@ __all__ = [
     "PersonalFact",
     "ContactInfo",
     "PageData",
+    "FooterInfo",
     "ContactForm"
 ]
