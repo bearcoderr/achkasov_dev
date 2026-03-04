@@ -79,14 +79,14 @@ class Experience(DomainEntity):
     """Опыт работы"""
     period: LocalizedField
     position: LocalizedField
-    company: str
+    company: LocalizedField
     description: LocalizedField
 
     def to_dict(self) -> Dict[str, Any]:
         return {
             "period": self.period.to_dict(),
             "position": self.position.to_dict(),
-            "company": self.company,
+            "company": self.company.to_dict(),
             "description": self.description.to_dict()
         }
 
@@ -164,8 +164,8 @@ class FooterInfo(DomainEntity):
 
     def to_dict(self) -> Dict[str, Any]:
         return {
-            "rights": self.rights,
-            "privacy": self.privacy,
+            "rights": self.rights.to_dict(),
+            "privacy": self.privacy.to_dict(),
         }
 
 @dataclass

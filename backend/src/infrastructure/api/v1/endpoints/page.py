@@ -9,6 +9,9 @@ from src.infrastructure.db.models import (
     Experience, Skills, ContactMessage, Settings, Personal, Certificate
 )
 
+import logging
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/api", tags=["Portfolio"])
 
 
@@ -265,7 +268,7 @@ def send_contact_form(
     name: str,
     email: str,
     message: str,
-    phone: str = None,
+    phone: str = "",
     db: Session = Depends(get_db)
 ):
     """Отправить форму обратной связи и сохранить в БД"""
@@ -294,123 +297,13 @@ def send_contact_form(
 
 @router.get("/page-data")
 def get_full_page_data(db: Session = Depends(get_db)):
-    """Получить все данные страницы одним запросом"""
-
-    # Hero
-    hero = db.query(Hero).first()
-    hero_data = {
-        "greeting": {"ru": "Привет, я", "en": "Hi, I'm"},
-        "img": hero.image_url if hero else "",
-        "name": hero.title_ru if hero else "",
-        "title": {"ru": hero.subtitle_ru, "en": hero.subtitle_en} if hero else {"ru": "", "en": ""},
-        "subtitle": {"ru": hero.description_ru, "en": hero.description_en} if hero else {"ru": "", "en": ""},
-        "cv_url": "/resume.pdf",
-        "social_links": hero.social_links if hero else {}
-    } if hero else None
-
-    # About
-    about = db.query(About).first()
-    about_data = {
-        "title": {"ru": about.title_ru, "en": about.title_en},
-        "text": {"ru": about.description_ru, "en": about.description_en}
-    } if about else None
-
-    # Personal Facts
-    facts = db.query(Personal).all()
-    personal_data = [{
-        "emoji": fact.emoji,
-        "title": {"ru": fact.title_ru, "en": fact.title_en},
-        "description": {"ru": fact.description_ru, "en": fact.description_en}
-    } for fact in facts]
-
-    # Services
-    services = db.query(Service).filter(Service.is_active == True).order_by(Service.order).all()
-    services_data = [{
-        "title": {"ru": s.title_ru, "en": s.title_en},
-        "description": {"ru": s.description_ru, "en": s.description_en},
-        "details": {"ru": s.details_ru or [], "en": s.details_en or []},
-        "icon": s.icon or "🚀"
-    } for s in services]
-
-    # Projects
-    projects = db.query(Project).filter(Project.is_active == True).order_by(Project.order).all()
-    projects_data = [{
-        "title": {"ru": p.title_ru, "en": p.title_en},
-        "description": {"ru": p.description_ru, "en": p.description_en},
-        "tech": p.tech or [],
-        "demo_url": p.demo_url,
-        "github_url": p.github_url
-    } for p in projects]
-
-    # Experience
-    experiences = db.query(Experience).filter(Experience.is_active == True).order_by(Experience.order).all()
-    experience_data = [{
-        "period": {"ru": e.period_ru, "en": e.period_en},
-        "position": {"ru": e.position_ru, "en": e.position_en},
-        "company": e.company_ru,
-        "description": {"ru": e.description_ru, "en": e.description_en}
-    } for e in experiences]
-
-    # Skills - ИСПРАВЛЕНО
-    skills = db.query(Skills).all()
-    skills_data = [{
-        "name": {"ru": s.title_ru, "en": s.title_en},
-        "items": {
-            "ru": s.listSkills_ru or [],
-            "en": s.listSkills_en or s.listSkills_ru or []
-        }
-    } for s in skills]
-
-    # Certificates
-    certificates = db.query(Certificate).filter(Certificate.is_active == True).order_by(Certificate.order).all()
-    certificates_data = [{
-        "title": {"ru": c.title_ru, "en": c.title_en},
-        "provider": c.provider,
-        "description": {"ru": c.description_ru, "en": c.description_en},
-        "image_url": c.image_url,
-        "issue_date": c.issue_date
-    } for c in certificates]
-
-    # Settings (Contact & Footer)
-    settings = db.query(Settings).first()
-
-    # Contact Info
-    contact_data = {
-        "email": settings.email,
-        "phone": settings.phone,
-        "location": {
-            "ru": settings.location_ru,
-            "en": settings.location_en
-        },
-        "title": {
-            "ru": settings.title_text_footer_ru if settings else "Контакты",
-            "en": settings.title_text_footer_en if settings else "Contact"
-        },
-        "description": {
-            "ru": settings.desc_text_footer_ru,
-            "en": settings.desc_text_footer_en
-        }
-    }
-
-    # Footer Info
-    footer_data = {
-        "rights": {
-            "ru": settings.footer_info_ru if settings else "Все права защищены",
-            "en": settings.footer_info_en if settings else "All rights reserved"
-        },
-        "privacy": {"ru": "Политика конфиденциальности", "en": "Privacy Policy"},
-        "social_links": hero.social_links if hero else {}
-    }
-
-    return {
-        "hero": hero_data,
-        "about": about_data,
-        "personal": personal_data,
-        "services": services_data,
-        "projects": projects_data,
-        "experience": experience_data,
-        "skills": skills_data,
-        "certificates": certificates_data,
-        "contact": contact_data,
-        "footer": footer_data
-    }
+    """Получить все данные страницы одним запросом через репозиторий"""
+    from src.infrastructure.db.repositories.page_repo_impl import PageRepositoryImpl
+    repo = PageRepositoryImpl(db)
+    
+    try:
+        page_data = repo.get_all_page_data()
+        return page_data.to_dict()
+    except Exception as e:
+        logger.error(f"Error fetching page data: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

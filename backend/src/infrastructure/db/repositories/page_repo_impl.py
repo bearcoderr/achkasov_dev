@@ -28,8 +28,8 @@ class PageRepositoryImpl(IPageRepository):
             greeting=LocalizedField(ru="Привет, я", en="Hi, I'm"),
             img=hero_row.image_url,
             name=LocalizedField(ru=hero_row.title_ru, en=hero_row.title_en),
-            title=LocalizedField(ru=hero_row.subtitle_ru, en=hero_row.subtitle_eng),
-            subtitle=LocalizedField(ru=hero_row.description_ru, en=hero_row.description_eng),
+            title=LocalizedField(ru=hero_row.subtitle_ru, en=hero_row.subtitle_en),
+            subtitle=LocalizedField(ru=hero_row.description_ru, en=hero_row.description_en),
             cv_url="/resume.pdf",
             social_links=hero_row.social_links or {}
         )
@@ -41,7 +41,7 @@ class PageRepositoryImpl(IPageRepository):
 
         return AboutData(
             title=LocalizedField(ru=about_row.title_ru, en=about_row.title_en),
-            text=LocalizedField(ru=about_row.description_ru, en=about_row.description_eng),
+            text=LocalizedField(ru=about_row.description_ru, en=about_row.description_en),
         )
 
     def get_services(self) -> List[ServiceEntity]:
@@ -115,7 +115,7 @@ class PageRepositoryImpl(IPageRepository):
         return [
             ExperienceEntity(
                 period=LocalizedField(ru=row.period_ru, en=row.period_en),
-                company=row.company_ru,
+                company=LocalizedField(ru=row.company_ru, en=row.company_en),
                 position=LocalizedField(ru=row.position_ru, en=row.position_en),
                 description=LocalizedField(ru=row.description_ru, en=row.description_en),
             ) for row in experience_rows
@@ -181,7 +181,7 @@ class PageRepositoryImpl(IPageRepository):
 
         return FooterInfo(
             rights=LocalizedField(ru=footer_row.footer_info_ru, en=footer_row.footer_info_en),
-            privacy=LocalizedField(ru="footer_row.privacy_policy_ru", en="footer_row.privacy_policy_en"),
+            privacy=LocalizedField(ru="Политика конфиденциальности", en="Privacy Policy"),
         )
 
 
