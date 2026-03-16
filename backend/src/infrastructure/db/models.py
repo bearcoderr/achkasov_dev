@@ -17,7 +17,9 @@ class Hero(Base):
     __tablename__ = "hero"
 
     id = Column(Integer, primary_key=True, index=True)
-    image_url = Column(String(500), nullable=True)
+    image_url = Column(Text, nullable=True)
+    cv_url_ru = Column(String(500), nullable=True)
+    cv_url_en = Column(String(500), nullable=True)
 
     # RU Version
     title_ru = Column(String(255), nullable=True)
@@ -177,6 +179,9 @@ class Personal(Base):
     # EN Version
     title_en = Column(String(255), nullable=True)
     description_en = Column(Text, nullable=True)
+
+    order = Column(Integer, default=0, nullable=True)
+    is_active = Column(Boolean, default=True, nullable=True)
 
 
 class ContactMessage(Base):

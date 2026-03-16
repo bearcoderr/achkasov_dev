@@ -50,10 +50,10 @@ def get_hero(db: Session = Depends(get_db)):
     return {
         "greeting": {"ru": "Привет, я", "en": "Hi, I'm"},
         "img": hero.image_url,
-        "name": hero.title_ru,
+        "name": {"ru": hero.title_ru, "en": hero.title_en},
         "title": {"ru": hero.subtitle_ru, "en": hero.subtitle_en},
         "subtitle": {"ru": hero.description_ru, "en": hero.description_en},
-        "cv_url": "/resume.pdf",
+        "cv_url": {"ru": hero.cv_url_ru or "", "en": hero.cv_url_en or ""},
         "social_links": hero.social_links or {}
     }
 
@@ -79,7 +79,10 @@ def get_about(db: Session = Depends(get_db)):
 @router.get("/personal")
 def get_personal_facts(db: Session = Depends(get_db)):
     """Получить личные факты"""
-    facts = db.query(Personal).all()
+    from sqlalchemy import or_
+    facts = db.query(Personal).filter(
+        or_(Personal.is_active == True, Personal.is_active.is_(None))
+    ).order_by(Personal.order).all()
     if not facts:
         raise HTTPException(status_code=404, detail="Personal data not found")
 

@@ -59,6 +59,7 @@ class HeroUpdateRequest(BaseModel):
     description: LocalizedData
     cta: LocalizedData
     image: str
+    cv_url: LocalizedData
 
 class HeroResponse(BaseModel):
     id: int
@@ -67,6 +68,7 @@ class HeroResponse(BaseModel):
     description: LocalizedData
     cta: LocalizedData
     image: str
+    cv_url: LocalizedData
 
 # About Schemas
 class AboutUpdateRequest(BaseModel):
@@ -154,3 +156,62 @@ class SkillCategoryResponse(BaseModel):
     id: int
     name: LocalizedData
     skills: List[str]
+
+# Certificate Schemas
+class CertificateCreateRequest(BaseModel):
+    title: LocalizedData
+    description: LocalizedData
+    provider: str
+    image_url: str
+    issue_date: str
+    credential_url: Optional[str] = None
+    order: Optional[int] = None
+
+class CertificateUpdateRequest(BaseModel):
+    title: LocalizedData
+    description: LocalizedData
+    provider: str
+    image_url: str
+    issue_date: str
+    credential_url: Optional[str] = None
+    order: Optional[int] = None
+
+class CertificateResponse(BaseModel):
+    id: int
+    title: LocalizedData
+    description: LocalizedData
+    provider: str
+    image_url: str
+    issue_date: str
+    credential_url: Optional[str] = None
+    order: Optional[int] = None
+
+# Personal Facts Schemas
+class PersonalFactCreateRequest(BaseModel):
+    emoji: str
+    title: LocalizedData
+    description: LocalizedData
+    order: Optional[int] = None
+
+class PersonalFactUpdateRequest(BaseModel):
+    emoji: str
+    title: LocalizedData
+    description: LocalizedData
+    order: Optional[int] = None
+
+class PersonalFactResponse(BaseModel):
+    id: int
+    emoji: str
+    title: LocalizedData
+    description: LocalizedData
+    order: Optional[int] = None
+    is_active: Optional[bool] = None
+
+# Settings Schemas
+class SettingsUpdateRequest(BaseModel):
+    email: str
+    phone: str
+    location: LocalizedData
+    contact_title: LocalizedData
+    contact_description: LocalizedData
+    footer_rights: LocalizedData
