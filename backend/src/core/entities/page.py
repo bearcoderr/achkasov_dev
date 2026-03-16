@@ -12,7 +12,7 @@ class HeroData(DomainEntity):
     name: LocalizedField
     title: LocalizedField
     subtitle: LocalizedField
-    cv_url: str
+    cv_url: LocalizedField
     social_links: Dict[str, str]  # github, linkedin, telegram
 
     def to_dict(self) -> Dict[str, Any]:
@@ -22,7 +22,7 @@ class HeroData(DomainEntity):
             "name": self.name,
             "title": self.title.to_dict(),
             "subtitle": self.subtitle.to_dict(),
-            "cv_url": self.cv_url,
+            "cv_url": self.cv_url.to_dict(),
             "social_links": self.social_links
         }
 

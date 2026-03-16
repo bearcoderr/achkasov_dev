@@ -122,7 +122,7 @@ export default function Home() {
       greeting: hero.greeting?.[currentLang] ?? "",
       title: hero.title?.[currentLang] ?? "",
       subtitle: hero.subtitle?.[currentLang] ?? "",
-      cv_url: hero.cv_url,
+      cv_url: hero.cv_url ?? { ru: "", en: "" },
       social_links: hero.social_links ?? {},
     },
 
@@ -139,7 +139,7 @@ export default function Home() {
       items: services.map(service => ({
         title: service.title?.[currentLang],
         description: service.description?.[currentLang],
-        details: service.details?.[currentLang], // details - это массив строк
+        details: service.details?.[currentLang] ?? [], // details - это массив строк
       }))
     },
 
@@ -159,7 +159,7 @@ export default function Home() {
       items: experience.map(exp => ({
         period: exp.period?.[currentLang],
         position: exp.position?.[currentLang],
-        company: exp.company, // Не переводим
+        company: exp.company?.[currentLang],
         description: exp.description?.[currentLang],
       })),
     },
@@ -226,7 +226,7 @@ export default function Home() {
                 <p className="max-w-xl text-lg leading-relaxed text-muted-foreground">{t.hero.subtitle}</p>
                 <div className="mt-8 flex flex-wrap items-center gap-4">
                   <a
-                    href="{t.hero.cv_url}"
+                    href={t.hero.cv_url?.[currentLang] || "#"}
                     download
                     className="inline-flex items-center gap-2 rounded-lg bg-primary px-6 py-3 text-sm font-medium text-primary-foreground transition-all hover:scale-105 hover:shadow-lg"
                   >

@@ -1,19 +1,21 @@
 # (PUT /about, POST /projects)
 """API endpoints для админки (protected)"""
-from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi import APIRouter, Depends, HTTPException, Header, UploadFile, File
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 from typing import List, Optional
 import jwt
 import datetime
 from passlib.context import CryptContext
-
-import os
+from pathlib import Path
+import uuid
+import shutil
 
 from src.infrastructure.db.database import get_db
 from src.infrastructure.db.models import (
     LoginRequest as LoginRequestModel,
     Hero, About, Service, Project,
-    Experience, Skills, Personal,
+    Experience, Skills, Personal, Certificate,
     ContactMessage, Settings
 )
 
@@ -24,11 +26,14 @@ from src.infrastructure.api.admin.schemas.admin_schemas import (
     ServiceCreateRequest, ServiceUpdateRequest, ServiceResponse,
     ProjectCreateRequest, ProjectUpdateRequest, ProjectResponse,
     ExperienceCreateRequest, ExperienceUpdateRequest, ExperienceResponse,
-    SkillCategoryCreateRequest, SkillCategoryUpdateRequest, SkillCategoryResponse
+    SkillCategoryCreateRequest, SkillCategoryUpdateRequest, SkillCategoryResponse,
+    CertificateCreateRequest, CertificateUpdateRequest, CertificateResponse,
+    PersonalFactCreateRequest, PersonalFactUpdateRequest, PersonalFactResponse,
+    SettingsUpdateRequest
 )
+from src.shared.config import settings
 
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", "CHANGE-ME-IN-PRODUCTION")
 ALGORITHM = "HS256"
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
@@ -36,6 +41,72 @@ router = APIRouter(prefix="/admin", tags=["Admin"])
 import logging
 
 logger = logging.getLogger(__name__)
+
+PROJECTS_UPLOAD_DIR = Path(settings.upload_dir) / "projects"
+CERTIFICATES_UPLOAD_DIR = Path(settings.upload_dir) / "certificates"
+RESUME_UPLOAD_DIR = Path(settings.upload_dir) / "resume"
+
+def localized(ru_value: Optional[str], en_value: Optional[str]) -> dict:
+    """Normalize localized fields to always be strings."""
+    return {"ru": ru_value or "", "en": en_value or ""}
+
+
+def localized_list(ru_value: Optional[list], en_value: Optional[list]) -> dict:
+    """Normalize localized list fields to always be lists."""
+    return {"ru": ru_value or [], "en": en_value or []}
+
+def details_to_admin(value: Optional[object]) -> str:
+    """Convert stored details (list or str) to admin textarea string."""
+    if value is None:
+        return ""
+    if isinstance(value, list):
+        return "\n".join([str(item) for item in value if item is not None])
+    return str(value)
+
+
+def details_to_storage(value: Optional[object]) -> list:
+    """Convert admin textarea string to list for storage."""
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return value
+    text = str(value)
+    if not text.strip():
+        return []
+    return [line.strip() for line in text.splitlines() if line.strip()]
+
+def save_uploaded_file(file: UploadFile, target_dir: Path) -> str:
+    """Save uploaded file and return public URL."""
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="File name is required")
+
+    target_dir.mkdir(parents=True, exist_ok=True)
+    suffix = Path(file.filename).suffix.lower()
+    filename = f"{uuid.uuid4().hex}{suffix}"
+    file_path = target_dir / filename
+
+    with file_path.open("wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    return f"/uploads/{target_dir.name}/{filename}"
+
+
+def get_secret_key() -> str:
+    """Resolve JWT secret key from settings with safe dev fallback."""
+    secret_key = settings.secret_key
+    if not secret_key:
+        if settings.environment.lower() != "production":
+            logger.warning("JWT secret key is not set; using empty value in non-production.")
+            return ""
+        raise RuntimeError("JWT_SECRET_KEY is required in production")
+
+    if secret_key == "your-secret-key-change-in-production":
+        if settings.environment.lower() != "production":
+            logger.warning("JWT secret key is using the default placeholder in non-production.")
+            return secret_key
+        raise RuntimeError("JWT_SECRET_KEY is required in production")
+
+    return secret_key
 
 
 # ============= AUTH HELPERS =============
@@ -47,7 +118,7 @@ def verify_token(authorization: str = Header(None)) -> dict:
 
     token = authorization.replace("Bearer ", "")
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(token, get_secret_key(), algorithms=[ALGORITHM])
         return payload
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token expired")
@@ -71,7 +142,7 @@ def login(req: LoginRequest, db: Session = Depends(get_db)):
         "sub": user.username,
         "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=24)
     }
-    token = jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+    token = jwt.encode(payload, get_secret_key(), algorithm=ALGORITHM)
 
     return {"token": token}
 
@@ -91,10 +162,11 @@ def get_hero_admin(
     return {
         "id": hero.id,
         "title": {"ru": hero.title_ru, "en": hero.title_en},
-        "subtitle": {"ru": hero.subtitle_ru, "en": hero.subtitle_eng},
-        "description": {"ru": hero.description_ru, "en": hero.description_eng},
-        "cta": {"ru": hero.button_ru, "en": hero.button_eng},
-        "image": hero.image_url
+        "subtitle": {"ru": hero.subtitle_ru, "en": hero.subtitle_en},
+        "description": {"ru": hero.description_ru, "en": hero.description_en},
+        "cta": {"ru": hero.button_ru, "en": hero.button_en},
+        "image": hero.image_url,
+        "cv_url": {"ru": hero.cv_url_ru or "", "en": hero.cv_url_en or ""}
     }
 
 
@@ -113,12 +185,14 @@ def update_hero(
             title_ru=request.title.ru,
             title_en=request.title.en,
             subtitle_ru=request.subtitle.ru,
-            subtitle_eng=request.subtitle.en,
+            subtitle_en=request.subtitle.en,
             description_ru=request.description.ru,
-            description_eng=request.description.en,
+            description_en=request.description.en,
             button_ru=request.cta.ru,
-            button_eng=request.cta.en,
-            image_url=request.image
+            button_en=request.cta.en,
+            image_url=request.image,
+            cv_url_ru=request.cv_url.ru,
+            cv_url_en=request.cv_url.en
         )
         db.add(hero)
     else:
@@ -126,12 +200,14 @@ def update_hero(
         hero.title_ru = request.title.ru
         hero.title_en = request.title.en
         hero.subtitle_ru = request.subtitle.ru
-        hero.subtitle_eng = request.subtitle.en
+        hero.subtitle_en = request.subtitle.en
         hero.description_ru = request.description.ru
-        hero.description_eng = request.description.en
+        hero.description_en = request.description.en
         hero.button_ru = request.cta.ru
-        hero.button_eng = request.cta.en
+        hero.button_en = request.cta.en
         hero.image_url = request.image
+        hero.cv_url_ru = request.cv_url.ru
+        hero.cv_url_en = request.cv_url.en
 
     db.commit()
     db.refresh(hero)
@@ -139,10 +215,11 @@ def update_hero(
     return {
         "id": hero.id,
         "title": {"ru": hero.title_ru, "en": hero.title_en},
-        "subtitle": {"ru": hero.subtitle_ru, "en": hero.subtitle_eng},
-        "description": {"ru": hero.description_ru, "en": hero.description_eng},
-        "cta": {"ru": hero.button_ru, "en": hero.button_eng},
-        "image": hero.image_url
+        "subtitle": {"ru": hero.subtitle_ru, "en": hero.subtitle_en},
+        "description": {"ru": hero.description_ru, "en": hero.description_en},
+        "cta": {"ru": hero.button_ru, "en": hero.button_en},
+        "image": hero.image_url,
+        "cv_url": {"ru": hero.cv_url_ru or "", "en": hero.cv_url_en or ""}
     }
 
 
@@ -160,8 +237,8 @@ def get_about_admin(
 
     return {
         "id": about.id,
-        "title": {"ru": about.title_ru, "en": about.title_en},
-        "description": {"ru": about.description_ru, "en": about.description_eng}
+        "title": localized(about.title_ru, about.title_en),
+        "description": localized(about.description_ru, about.description_en)
     }
 
 
@@ -179,22 +256,22 @@ def update_about(
             title_ru=request.title.ru,
             title_en=request.title.en,
             description_ru=request.description.ru,
-            description_eng=request.description.en
+            description_en=request.description.en
         )
         db.add(about)
     else:
         about.title_ru = request.title.ru
         about.title_en = request.title.en
         about.description_ru = request.description.ru
-        about.description_eng = request.description.en
+        about.description_en = request.description.en
 
     db.commit()
     db.refresh(about)
 
     return {
         "id": about.id,
-        "title": {"ru": about.title_ru, "en": about.title_en},
-        "description": {"ru": about.description_ru, "en": about.description_eng}
+        "title": localized(about.title_ru, about.title_en),
+        "description": localized(about.description_ru, about.description_en)
     }
 
 
@@ -210,9 +287,12 @@ def get_services_admin(
 
     return [{
         "id": s.id,
-        "title": {"ru": s.title_ru, "en": s.title_en},
-        "description": {"ru": s.description_ru, "en": s.description_en},
-        "details": {"ru": s.details_ru, "en": s.details_en},
+        "title": localized(s.title_ru, s.title_en),
+        "description": localized(s.description_ru, s.description_en),
+        "details": {
+            "ru": details_to_admin(s.details_ru),
+            "en": details_to_admin(s.details_en),
+        },
         "icon": s.icon or "🚀"
     } for s in services]
 
@@ -232,8 +312,8 @@ def create_service(
         title_en=request.title.en,
         description_ru=request.description.ru,
         description_en=request.description.en,
-        details_ru=request.details.ru,
-        details_en=request.details.en,
+        details_ru=details_to_storage(request.details.ru),
+        details_en=details_to_storage(request.details.en),
         icon=request.icon,
         order=max_order,
         is_active=True
@@ -245,9 +325,12 @@ def create_service(
 
     return {
         "id": service.id,
-        "title": {"ru": service.title_ru, "en": service.title_en},
-        "description": {"ru": service.description_ru, "en": service.description_en},
-        "details": {"ru": service.details_ru, "en": service.details_en},
+        "title": localized(service.title_ru, service.title_en),
+        "description": localized(service.description_ru, service.description_en),
+        "details": {
+            "ru": details_to_admin(service.details_ru),
+            "en": details_to_admin(service.details_en),
+        },
         "icon": service.icon
     }
 
@@ -269,8 +352,8 @@ def update_service(
     service.title_en = request.title.en
     service.description_ru = request.description.ru
     service.description_en = request.description.en
-    service.details_ru = request.details.ru
-    service.details_en = request.details.en
+    service.details_ru = details_to_storage(request.details.ru)
+    service.details_en = details_to_storage(request.details.en)
     service.icon = request.icon
 
     db.commit()
@@ -278,9 +361,12 @@ def update_service(
 
     return {
         "id": service.id,
-        "title": {"ru": service.title_ru, "en": service.title_en},
-        "description": {"ru": service.description_ru, "en": service.description_en},
-        "details": {"ru": service.details_ru, "en": service.details_en},
+        "title": localized(service.title_ru, service.title_en),
+        "description": localized(service.description_ru, service.description_en),
+        "details": {
+            "ru": details_to_admin(service.details_ru),
+            "en": details_to_admin(service.details_en),
+        },
         "icon": service.icon
     }
 
@@ -304,6 +390,30 @@ def delete_service(
 
 
 # ============= PROJECTS ENDPOINTS =============
+
+@router.post("/projects/upload-image")
+def upload_project_image(
+        file: UploadFile = File(...),
+        user: dict = Depends(verify_token)
+):
+    """Upload project image and return public URL."""
+    url = save_uploaded_file(file, PROJECTS_UPLOAD_DIR)
+    return {"url": url}
+
+
+@router.post("/hero/upload-resume")
+def upload_resume(
+        lang: str,
+        file: UploadFile = File(...),
+        user: dict = Depends(verify_token)
+):
+    """Upload resume file for specific language and return public URL."""
+    lang_value = (lang or "").lower()
+    if lang_value not in {"ru", "en"}:
+        raise HTTPException(status_code=400, detail="Invalid lang. Use ru or en.")
+    url = save_uploaded_file(file, RESUME_UPLOAD_DIR)
+    return {"url": url, "lang": lang_value}
+
 
 @router.get("/projects", response_model=List[ProjectResponse])
 def get_projects_admin(
@@ -418,14 +528,16 @@ def get_experience_admin(
         user: dict = Depends(verify_token)
 ):
     """Получить весь опыт работы для админки"""
-    experiences = db.query(Experience).filter(Experience.is_active == True).order_by(Experience.order).all()
+    experiences = db.query(Experience).filter(
+        or_(Experience.is_active == True, Experience.is_active.is_(None))
+    ).order_by(Experience.order).all()
 
     return [{
         "id": e.id,
-        "year": e.period_ru,  # используем period_ru как год
-        "company": {"ru": e.company_ru, "en": e.company_en},
-        "position": {"ru": e.position_ru, "en": e.position_en},
-        "description": {"ru": e.description_ru, "en": e.description_en}
+        "year": e.period_ru or "",  # используем period_ru как год
+        "company": localized(e.company_ru, e.company_en),
+        "position": localized(e.position_ru, e.position_en),
+        "description": localized(e.description_ru, e.description_en)
     } for e in experiences]
 
 
@@ -458,9 +570,9 @@ def create_experience(
     return {
         "id": experience.id,
         "year": experience.period_ru,
-        "company": {"ru": experience.company_ru, "en": experience.company_en},
-        "position": {"ru": experience.position_ru, "en": experience.position_en},
-        "description": {"ru": experience.description_ru, "en": experience.description_en}
+        "company": localized(experience.company_ru, experience.company_en),
+        "position": localized(experience.position_ru, experience.position_en),
+        "description": localized(experience.description_ru, experience.description_en)
     }
 
 
@@ -492,9 +604,9 @@ def update_experience(
     return {
         "id": experience.id,
         "year": experience.period_ru,
-        "company": {"ru": experience.company_ru, "en": experience.company_en},
-        "position": {"ru": experience.position_ru, "en": experience.position_en},
-        "description": {"ru": experience.description_ru, "en": experience.description_en}
+        "company": localized(experience.company_ru, experience.company_en),
+        "position": localized(experience.position_ru, experience.position_en),
+        "description": localized(experience.description_ru, experience.description_en)
     }
 
 
@@ -528,8 +640,8 @@ def get_skills_admin(
 
     return [{
         "id": s.id,
-        "name": {"ru": s.title_ru, "en": s.title_en},
-        "skills": s.listSkills_ru  # предполагаем что навыки одинаковые для обеих локалей
+        "name": localized(s.title_ru, s.title_en),
+        "skills": s.listSkills_ru or s.listSkills_en or []
     } for s in skills]
 
 
@@ -553,8 +665,8 @@ def create_skill_category(
 
     return {
         "id": skill.id,
-        "name": {"ru": skill.title_ru, "en": skill.title_en},
-        "skills": skill.listSkills_ru
+        "name": localized(skill.title_ru, skill.title_en),
+        "skills": skill.listSkills_ru or skill.listSkills_en or []
     }
 
 
@@ -581,8 +693,8 @@ def update_skill_category(
 
     return {
         "id": skill.id,
-        "name": {"ru": skill.title_ru, "en": skill.title_en},
-        "skills": skill.listSkills_ru
+        "name": localized(skill.title_ru, skill.title_en),
+        "skills": skill.listSkills_ru or skill.listSkills_en or []
     }
 
 
@@ -602,6 +714,291 @@ def delete_skill_category(
     db.commit()
 
     return {"success": True, "message": "Skill category deleted"}
+
+
+# ============= CERTIFICATES ENDPOINTS =============
+
+@router.get("/certificates", response_model=List[CertificateResponse])
+def get_certificates_admin(
+        db: Session = Depends(get_db),
+        user: dict = Depends(verify_token),
+        include_archived: bool = False
+):
+    """Получить все сертификаты для админки"""
+    if include_archived:
+        certificates = db.query(Certificate).order_by(Certificate.order).all()
+    else:
+        certificates = db.query(Certificate).filter(
+            or_(Certificate.is_active == True, Certificate.is_active.is_(None))
+        ).order_by(Certificate.order).all()
+
+    return [{
+        "id": c.id,
+        "title": localized(c.title_ru, c.title_en),
+        "description": localized(c.description_ru, c.description_en),
+        "provider": c.provider or "",
+        "image_url": c.image_url or "",
+        "issue_date": c.issue_date or "",
+        "credential_url": c.credential_url or None,
+        "order": c.order,
+        "is_active": c.is_active,
+    } for c in certificates]
+
+
+@router.post("/certificates", response_model=CertificateResponse)
+def create_certificate(
+        request: CertificateCreateRequest,
+        db: Session = Depends(get_db),
+        user: dict = Depends(verify_token)
+):
+    """Создать новый сертификат"""
+    max_order = db.query(Certificate).count()
+    order_value = request.order if request.order is not None else max_order
+
+    certificate = Certificate(
+        title_ru=request.title.ru,
+        title_en=request.title.en,
+        description_ru=request.description.ru,
+        description_en=request.description.en,
+        provider=request.provider,
+        image_url=request.image_url,
+        issue_date=request.issue_date,
+        credential_url=request.credential_url,
+        order=order_value,
+        is_active=True
+    )
+
+    db.add(certificate)
+    db.commit()
+    db.refresh(certificate)
+
+    return {
+        "id": certificate.id,
+        "title": localized(certificate.title_ru, certificate.title_en),
+        "description": localized(certificate.description_ru, certificate.description_en),
+        "provider": certificate.provider or "",
+        "image_url": certificate.image_url or "",
+        "issue_date": certificate.issue_date or "",
+        "credential_url": certificate.credential_url or None,
+        "order": certificate.order,
+        "is_active": certificate.is_active,
+    }
+
+
+@router.put("/certificates/{certificate_id}", response_model=CertificateResponse)
+def update_certificate(
+        certificate_id: int,
+        request: CertificateUpdateRequest,
+        db: Session = Depends(get_db),
+        user: dict = Depends(verify_token)
+):
+    """Обновить сертификат"""
+    certificate = db.query(Certificate).filter(Certificate.id == certificate_id).first()
+
+    if not certificate:
+        raise HTTPException(status_code=404, detail="Certificate not found")
+
+    certificate.title_ru = request.title.ru
+    certificate.title_en = request.title.en
+    certificate.description_ru = request.description.ru
+    certificate.description_en = request.description.en
+    certificate.provider = request.provider
+    certificate.image_url = request.image_url
+    certificate.issue_date = request.issue_date
+    certificate.credential_url = request.credential_url
+    if request.order is not None:
+        certificate.order = request.order
+
+    db.commit()
+    db.refresh(certificate)
+
+    return {
+        "id": certificate.id,
+        "title": localized(certificate.title_ru, certificate.title_en),
+        "description": localized(certificate.description_ru, certificate.description_en),
+        "provider": certificate.provider or "",
+        "image_url": certificate.image_url or "",
+        "issue_date": certificate.issue_date or "",
+        "credential_url": certificate.credential_url or None,
+        "order": certificate.order,
+        "is_active": certificate.is_active,
+    }
+
+
+@router.delete("/certificates/{certificate_id}")
+def delete_certificate(
+        certificate_id: int,
+        db: Session = Depends(get_db),
+        user: dict = Depends(verify_token)
+):
+    """Удалить сертификат (soft delete)"""
+    certificate = db.query(Certificate).filter(Certificate.id == certificate_id).first()
+
+    if not certificate:
+        raise HTTPException(status_code=404, detail="Certificate not found")
+
+    certificate.is_active = False
+    db.commit()
+
+    return {"success": True, "message": "Certificate deleted"}
+
+
+@router.post("/certificates/{certificate_id}/restore")
+def restore_certificate(
+        certificate_id: int,
+        db: Session = Depends(get_db),
+        user: dict = Depends(verify_token)
+):
+    """Восстановить сертификат"""
+    certificate = db.query(Certificate).filter(Certificate.id == certificate_id).first()
+
+    if not certificate:
+        raise HTTPException(status_code=404, detail="Certificate not found")
+
+    certificate.is_active = True
+    db.commit()
+
+    return {"success": True, "message": "Certificate restored"}
+
+
+@router.post("/certificates/upload-image")
+def upload_certificate_image(
+        file: UploadFile = File(...),
+        user: dict = Depends(verify_token)
+):
+    """Upload certificate image and return public URL."""
+    url = save_uploaded_file(file, CERTIFICATES_UPLOAD_DIR)
+    return {"url": url}
+
+
+# ============= PERSONAL FACTS ENDPOINTS =============
+
+@router.get("/personal", response_model=List[PersonalFactResponse])
+def get_personal_admin(
+        db: Session = Depends(get_db),
+        user: dict = Depends(verify_token),
+        include_archived: bool = False
+):
+    """Получить личные факты для админки"""
+    if include_archived:
+        facts = db.query(Personal).order_by(Personal.order).all()
+    else:
+        facts = db.query(Personal).filter(
+            or_(Personal.is_active == True, Personal.is_active.is_(None))
+        ).order_by(Personal.order).all()
+
+    return [{
+        "id": f.id,
+        "emoji": f.emoji or "",
+        "title": localized(f.title_ru, f.title_en),
+        "description": localized(f.description_ru, f.description_en),
+        "order": f.order,
+        "is_active": f.is_active,
+    } for f in facts]
+
+
+@router.post("/personal", response_model=PersonalFactResponse)
+def create_personal_fact(
+        request: PersonalFactCreateRequest,
+        db: Session = Depends(get_db),
+        user: dict = Depends(verify_token)
+):
+    """Создать личный факт"""
+    max_order = db.query(Personal).count()
+    order_value = request.order if request.order is not None else max_order
+
+    fact = Personal(
+        emoji=request.emoji,
+        title_ru=request.title.ru,
+        title_en=request.title.en,
+        description_ru=request.description.ru,
+        description_en=request.description.en,
+        order=order_value,
+        is_active=True
+    )
+
+    db.add(fact)
+    db.commit()
+    db.refresh(fact)
+
+    return {
+        "id": fact.id,
+        "emoji": fact.emoji or "",
+        "title": localized(fact.title_ru, fact.title_en),
+        "description": localized(fact.description_ru, fact.description_en),
+        "order": fact.order,
+        "is_active": fact.is_active,
+    }
+
+
+@router.put("/personal/{fact_id}", response_model=PersonalFactResponse)
+def update_personal_fact(
+        fact_id: int,
+        request: PersonalFactUpdateRequest,
+        db: Session = Depends(get_db),
+        user: dict = Depends(verify_token)
+):
+    """Обновить личный факт"""
+    fact = db.query(Personal).filter(Personal.id == fact_id).first()
+
+    if not fact:
+        raise HTTPException(status_code=404, detail="Personal fact not found")
+
+    fact.emoji = request.emoji
+    fact.title_ru = request.title.ru
+    fact.title_en = request.title.en
+    fact.description_ru = request.description.ru
+    fact.description_en = request.description.en
+    if request.order is not None:
+        fact.order = request.order
+
+    db.commit()
+    db.refresh(fact)
+
+    return {
+        "id": fact.id,
+        "emoji": fact.emoji or "",
+        "title": localized(fact.title_ru, fact.title_en),
+        "description": localized(fact.description_ru, fact.description_en),
+        "order": fact.order,
+        "is_active": fact.is_active,
+    }
+
+
+@router.delete("/personal/{fact_id}")
+def delete_personal_fact(
+        fact_id: int,
+        db: Session = Depends(get_db),
+        user: dict = Depends(verify_token)
+):
+    """Удалить личный факт (soft delete)"""
+    fact = db.query(Personal).filter(Personal.id == fact_id).first()
+
+    if not fact:
+        raise HTTPException(status_code=404, detail="Personal fact not found")
+
+    fact.is_active = False
+    db.commit()
+
+    return {"success": True, "message": "Personal fact deleted"}
+
+
+@router.post("/personal/{fact_id}/restore")
+def restore_personal_fact(
+        fact_id: int,
+        db: Session = Depends(get_db),
+        user: dict = Depends(verify_token)
+):
+    """Восстановить личный факт"""
+    fact = db.query(Personal).filter(Personal.id == fact_id).first()
+
+    if not fact:
+        raise HTTPException(status_code=404, detail="Personal fact not found")
+
+    fact.is_active = True
+    db.commit()
+
+    return {"success": True, "message": "Personal fact restored"}
 
 
 # ============= SUBMISSIONS ENDPOINTS (без изменений) =============
@@ -647,27 +1044,18 @@ def get_settings_admin(
 
     return {
         "id": settings.id,
-        "email": settings.email,
-        "phone": settings.phone,
-        "location": {"ru": settings.location_ru, "en": settings.location_en},
-        "contact_title": {"ru": settings.title_text_footer_ru, "en": settings.title_text_footer_en},
-        "contact_description": {"ru": settings.desc_text_footer_ru, "en": settings.desc_text_footer_en},
-        "footer_rights": {"ru": settings.footer_info_ru, "en": settings.footer_info_en}
+        "email": settings.email or "",
+        "phone": settings.phone or "",
+        "location": localized(settings.location_ru, settings.location_en),
+        "contact_title": localized(settings.title_text_footer_ru, settings.title_text_footer_en),
+        "contact_description": localized(settings.desc_text_footer_ru, settings.desc_text_footer_en),
+        "footer_rights": localized(settings.footer_info_ru, settings.footer_info_en)
     }
 
 
 @router.put("/settings")
 def update_settings(
-        email: str,
-        phone: str,
-        location_ru: str,
-        location_en: str,
-        title_text_footer_ru: str,
-        title_text_footer_en: str,
-        desc_text_footer_ru: str,
-        desc_text_footer_en: str,
-        footer_info_ru: str,
-        footer_info_en: str,
+        request: SettingsUpdateRequest,
         db: Session = Depends(get_db),
         user: dict = Depends(verify_token)
 ):
@@ -677,32 +1065,71 @@ def update_settings(
     if not settings:
         # Создаём если не существует
         settings = Settings(
-            email=email,
-            phone=phone,
-            location_ru=location_ru,
-            location_en=location_en,
-            title_text_footer_ru=title_text_footer_ru,
-            title_text_footer_en=title_text_footer_en,
-            desc_text_footer_ru=desc_text_footer_ru,
-            desc_text_footer_en=desc_text_footer_en,
-            footer_info_ru=footer_info_ru,
-            footer_info_en=footer_info_en
+            email=request.email,
+            phone=request.phone,
+            location_ru=request.location.ru,
+            location_en=request.location.en,
+            title_text_footer_ru=request.contact_title.ru,
+            title_text_footer_en=request.contact_title.en,
+            desc_text_footer_ru=request.contact_description.ru,
+            desc_text_footer_en=request.contact_description.en,
+            footer_info_ru=request.footer_rights.ru,
+            footer_info_en=request.footer_rights.en
         )
         db.add(settings)
     else:
         # Обновляем существующий
-        settings.email = email
-        settings.phone = phone
-        settings.location_ru = location_ru
-        settings.location_en = location_en
-        settings.title_text_footer_ru = title_text_footer_ru
-        settings.title_text_footer_en = title_text_footer_en
-        settings.desc_text_footer_ru = desc_text_footer_ru
-        settings.desc_text_footer_en = desc_text_footer_en
-        settings.footer_info_ru = footer_info_ru
-        settings.footer_info_en = footer_info_en
+        settings.email = request.email
+        settings.phone = request.phone
+        settings.location_ru = request.location.ru
+        settings.location_en = request.location.en
+        settings.title_text_footer_ru = request.contact_title.ru
+        settings.title_text_footer_en = request.contact_title.en
+        settings.desc_text_footer_ru = request.contact_description.ru
+        settings.desc_text_footer_en = request.contact_description.en
+        settings.footer_info_ru = request.footer_rights.ru
+        settings.footer_info_en = request.footer_rights.en
 
     db.commit()
     db.refresh(settings)
 
     return {"success": True, "message": "Settings updated"}
+
+
+@router.get("/social-links", response_model=dict)
+def get_social_links_admin(
+        db: Session = Depends(get_db),
+        user: dict = Depends(verify_token)
+):
+    """Получить социальные ссылки"""
+    hero = db.query(Hero).first()
+    return hero.social_links if hero and hero.social_links else {}
+
+
+@router.put("/social-links")
+def update_social_links(
+        links: dict,
+        db: Session = Depends(get_db),
+        user: dict = Depends(verify_token)
+):
+    """Обновить социальные ссылки"""
+    hero = db.query(Hero).first()
+    if not hero:
+        hero = Hero(
+            title_ru="",
+            title_en="",
+            subtitle_ru="",
+            subtitle_en="",
+            description_ru="",
+            description_en="",
+            button_ru="",
+            button_en="",
+            image_url=""
+        )
+        db.add(hero)
+    hero.social_links = links or {}
+    db.commit()
+    db.refresh(hero)
+    return {"success": True}
+
+

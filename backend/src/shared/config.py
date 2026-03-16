@@ -1,6 +1,7 @@
 """Configuration settings"""
-from pydantic_settings import BaseSettings
 from typing import List
+from pydantic import Field, AliasChoices
+from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
@@ -25,14 +26,23 @@ class Settings(BaseSettings):
         return f"postgresql://{self.postgres_user}:{self.postgres_password}@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
 
     # CORS
-    allowed_origins: List[str] = [
+    allowed_origins: List[str] = Field(
+        default=[
         "http://localhost:3000",
         "http://localhost:3001",
         "https://yourdomain.com"
-    ]
+        ],
+        validation_alias=AliasChoices("CORS_ORIGINS", "ALLOWED_ORIGINS"),
+    )
 
     # Security
-    secret_key: str = "your-secret-key-change-in-production"
+    secret_key: str = Field(
+        default="your-secret-key-change-in-production",
+        validation_alias=AliasChoices("JWT_SECRET_KEY", "SECRET_KEY"),
+    )
+
+    # Uploads
+    upload_dir: str = "uploads"
 
     # PgAdmin
     pgadmin_email: str = "admin@admin.com"

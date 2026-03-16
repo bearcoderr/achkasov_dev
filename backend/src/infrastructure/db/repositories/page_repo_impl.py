@@ -1,4 +1,4 @@
-"""Реализация репозитория для чтения данных"""
+﻿"""Р РµР°Р»РёР·Р°С†РёСЏ СЂРµРїРѕР·РёС‚РѕСЂРёСЏ РґР»СЏ С‡С‚РµРЅРёСЏ РґР°РЅРЅС‹С…"""
 from typing import List
 from src.application.services.page_repository import IPageRepository
 from src.core.entities.page import (
@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 
 class PageRepositoryImpl(IPageRepository):
-    """Реализация IPageRepository с использованием статических данных"""
+    """Р РµР°Р»РёР·Р°С†РёСЏ IPageRepository СЃ РёСЃРїРѕР»СЊР·РѕРІР°РЅРёРµРј СЃС‚Р°С‚РёС‡РµСЃРєРёС… РґР°РЅРЅС‹С…"""
 
     def __init__(self, db_session: Session):
         self.db = db_session
@@ -25,12 +25,15 @@ class PageRepositoryImpl(IPageRepository):
             raise EntityNotFoundException("Hero not found")
 
         return HeroData(
-            greeting=LocalizedField(ru="Привет, я", en="Hi, I'm"),
+            greeting=LocalizedField(ru="РџСЂРёРІРµС‚, СЏ", en="Hi, I'm"),
             img=hero_row.image_url,
             name=LocalizedField(ru=hero_row.title_ru, en=hero_row.title_en),
             title=LocalizedField(ru=hero_row.subtitle_ru, en=hero_row.subtitle_en),
             subtitle=LocalizedField(ru=hero_row.description_ru, en=hero_row.description_en),
-            cv_url="/resume.pdf",
+            cv_url=LocalizedField(
+                ru=hero_row.cv_url_ru or "",
+                en=hero_row.cv_url_en or ""
+            ),
             social_links=hero_row.social_links or {}
         )
 
@@ -53,24 +56,19 @@ class PageRepositoryImpl(IPageRepository):
             ServiceEntity(
                 title=LocalizedField(ru=row.title_ru, en=row.title_en),
                 description=LocalizedField(ru=row.description_ru, en=row.description_en),
-                details=LocalizedList(ru=row.details_ru, en=row.details_en),  # ← Изменено на LocalizedList
+                details=LocalizedList(ru=row.details_ru, en=row.details_en),  # в†ђ РР·РјРµРЅРµРЅРѕ РЅР° LocalizedList
             )
             for row in services_rows
         ]
 
     def get_service_by_id(self, service_id: int) -> ServiceEntity:
-        services_rows = self.db.query(ServiceModel).all()
-        if not services_rows:
-            raise EntityNotFoundException("Services not found")
-
-        if service_id < 0 or service_id >= len(services_rows):
+        row = self.db.query(ServiceModel).filter(ServiceModel.id == service_id).first()
+        if not row:
             raise EntityNotFoundException(f"Service with id {service_id} not found")
-
-        row = services_rows[service_id]
         return ServiceEntity(
             title=LocalizedField(ru=row.title_ru, en=row.title_en),
             description=LocalizedField(ru=row.description_ru, en=row.description_en),
-            details=LocalizedList(ru=row.details_ru, en=row.details_en),  # ← Изменено на LocalizedList
+            details=LocalizedList(ru=row.details_ru, en=row.details_en),  # в†ђ РР·РјРµРЅРµРЅРѕ РЅР° LocalizedList
         )
 
     def get_projects(self) -> List[ProjectEntity]:
@@ -82,22 +80,16 @@ class PageRepositoryImpl(IPageRepository):
             ProjectEntity(
                 title=LocalizedField(ru=row.title_ru, en=row.title_en),
                 description=LocalizedField(ru=row.description_ru, en=row.description_en),
-                tech=row.tech,  # Передаем список технологий
+                tech=row.tech,  # РџРµСЂРµРґР°РµРј СЃРїРёСЃРѕРє С‚РµС…РЅРѕР»РѕРіРёР№
                 demo_url=row.demo_url,
                 github_url=row.github_url
             ) for row in project_rows
         ]
 
     def get_project_by_id(self, project_id: int) -> ProjectEntity:
-        project_rows = self.db.query(ProjectModel).all()
-
-        if not project_rows:
-            raise EntityNotFoundException("Projects not found")
-
-        if project_id < 0 or project_id >= len(project_rows):
+        row = self.db.query(ProjectModel).filter(ProjectModel.id == project_id).first()
+        if not row:
             raise EntityNotFoundException(f"Project with id {project_id} not found")
-
-        row = project_rows[project_id]
 
         return ProjectEntity(
             title=LocalizedField(ru=row.title_ru, en=row.title_en),
@@ -149,7 +141,10 @@ class PageRepositoryImpl(IPageRepository):
         ]
 
     def get_personal_facts(self) -> List[PersonalFact]:
-        personal_facts_rows = self.db.query(Personal).all()
+        from sqlalchemy import or_
+        personal_facts_rows = self.db.query(Personal).filter(
+            or_(Personal.is_active == True, Personal.is_active.is_(None))
+        ).order_by(Personal.order).all()
         if not personal_facts_rows:
             raise EntityNotFoundException("PersonalFact not found")
 
@@ -181,7 +176,10 @@ class PageRepositoryImpl(IPageRepository):
 
         return FooterInfo(
             rights=LocalizedField(ru=footer_row.footer_info_ru, en=footer_row.footer_info_en),
-            privacy=LocalizedField(ru="Политика конфиденциальности", en="Privacy Policy"),
+            privacy=LocalizedField(
+                ru="\u041f\u043e\u043b\u0438\u0442\u0438\u043a\u0430 \u043a\u043e\u043d\u0444\u0438\u0434\u0435\u043d\u0446\u0438\u0430\u043b\u044c\u043d\u043e\u0441\u0442\u0438",
+                en="Privacy Policy"
+            ),
         )
 
 
