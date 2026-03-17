@@ -1,4 +1,5 @@
 """Configuration settings"""
+import json
 from typing import List
 from pydantic import Field, AliasChoices
 from pydantic_settings import BaseSettings
@@ -25,13 +26,9 @@ class Settings(BaseSettings):
     def database_url(self) -> str:
         return f"postgresql://{self.postgres_user}:{self.postgres_password}@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
 
-    # CORS
-    allowed_origins: List[str] = Field(
-        default=[
-        "http://localhost:3000",
-        "http://localhost:3001",
-        "https://yourdomain.com"
-        ],
+    # CORS (store raw string, parse in property to avoid JSON decode errors)
+    allowed_origins: str = Field(
+        default="http://localhost:3000,http://localhost:3001,https://yourdomain.com",
         validation_alias=AliasChoices("CORS_ORIGINS", "ALLOWED_ORIGINS"),
     )
 
@@ -53,13 +50,21 @@ class Settings(BaseSettings):
         env_file = ".env"
         case_sensitive = False
         extra = "ignore"
+        env_ignore_empty = True
 
-        @classmethod
-        def parse_env_var(cls, field_name: str, raw_val: str):
-            """Parse comma-separated ALLOWED_ORIGINS"""
-            if field_name == 'allowed_origins':
-                return [origin.strip() for origin in raw_val.split(',')]
-            return raw_val
+    @property
+    def allowed_origins_list(self) -> List[str]:
+        value = (self.allowed_origins or "").strip()
+        if not value:
+            return []
+        if value.startswith("["):
+            try:
+                parsed = json.loads(value)
+                if isinstance(parsed, list):
+                    return [str(item).strip() for item in parsed if str(item).strip()]
+            except json.JSONDecodeError:
+                return []
+        return [origin.strip() for origin in value.split(",") if origin.strip()]
 
 
 settings = Settings()

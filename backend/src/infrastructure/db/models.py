@@ -1,5 +1,5 @@
 """SQLAlchemy модели для PostgreSQL - ОБНОВЛЁННАЯ ВЕРСИЯ"""
-from sqlalchemy import Column, Integer, String, Text, JSON, DateTime, Boolean
+from sqlalchemy import Column, Integer, String, Text, JSON, DateTime, Boolean, ForeignKey
 from sqlalchemy.sql import func
 from src.infrastructure.db.base import Base
 
@@ -222,4 +222,63 @@ class Settings(Base):
     title_text_footer_en = Column(String(500), nullable=True)
     desc_text_footer_en = Column(String(500), nullable=True)
     footer_info_en = Column(String(500), nullable=True)
+
+
+class BlogCategory(Base):
+    """Blog categories"""
+    __tablename__ = "blog_categories"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name_ru = Column(String(255), nullable=True)
+    name_en = Column(String(255), nullable=True)
+    slug = Column(String(255), unique=True, nullable=False, index=True)
+    order = Column(Integer, default=0, nullable=True)
+    is_active = Column(Boolean, default=True, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+
+class BlogTag(Base):
+    """Blog tags"""
+    __tablename__ = "blog_tags"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name_ru = Column(String(255), nullable=True)
+    name_en = Column(String(255), nullable=True)
+    slug = Column(String(255), unique=True, nullable=False, index=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+
+class BlogPost(Base):
+    """Blog posts"""
+    __tablename__ = "blog_posts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    slug = Column(String(255), unique=True, nullable=False, index=True)
+    category_id = Column(Integer, ForeignKey("blog_categories.id"), nullable=True)
+    status = Column(String(20), nullable=False, default="draft")
+    is_active = Column(Boolean, default=True, nullable=True)
+    published_at = Column(DateTime(timezone=True), nullable=True)
+
+    cover_image_url = Column(String(500), nullable=True)
+
+    title_ru = Column(String(255), nullable=True)
+    excerpt_ru = Column(Text, nullable=True)
+    content_ru = Column(Text, nullable=True)
+
+    title_en = Column(String(255), nullable=True)
+    excerpt_en = Column(Text, nullable=True)
+    content_en = Column(Text, nullable=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+
+class BlogPostTag(Base):
+    """Post-tag relation"""
+    __tablename__ = "blog_post_tags"
+
+    post_id = Column(Integer, ForeignKey("blog_posts.id"), primary_key=True)
+    tag_id = Column(Integer, ForeignKey("blog_tags.id"), primary_key=True)
 

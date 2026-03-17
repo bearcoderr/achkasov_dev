@@ -3,20 +3,23 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
+import axios from "axios"
 
 interface Category {
-  id: string
+  id: number
   name: { ru: string; en: string }
   slug: string
+  order?: number
+  is_active?: boolean
 }
 
 interface Article {
-  id: string
+  id: number
   title: { ru: string; en: string }
   slug: string
-  category: string
-  published: boolean
-  createdAt: string
+  category_id: number | null
+  status: "draft" | "published" | "archived"
+  is_active?: boolean
 }
 
 export default function AdminBlog() {
@@ -26,66 +29,79 @@ export default function AdminBlog() {
   const [articles, setArticles] = useState<Article[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [showCategoryModal, setShowCategoryModal] = useState(false)
-  const [editingCategory, setEditingCategory] = useState<Category | null>(null)
   const [newCategory, setNewCategory] = useState({ nameRu: "", nameEn: "", slug: "" })
+  const [error, setError] = useState<string | null>(null)
+
+  const api = axios.create({
+    baseURL: "",
+  })
+
+  api.interceptors.request.use((config) => {
+    const token = localStorage.getItem("adminToken")
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`
+    }
+    return config
+  })
 
   useEffect(() => {
     if (localStorage.getItem("adminLoggedIn") !== "true") {
       router.push("/admin")
     } else {
-      // Load from localStorage
-      const savedCategories = localStorage.getItem("blogCategories")
-      const savedArticles = localStorage.getItem("blogArticles")
-
-      if (!savedCategories) {
-        const defaultCategories = [
-          { id: "1", name: { ru: "Веб-разработка", en: "Web Development" }, slug: "web-development" },
-          { id: "2", name: { ru: "Backend", en: "Backend" }, slug: "backend" },
-          { id: "3", name: { ru: "DevOps", en: "DevOps" }, slug: "devops" },
-        ]
-        setCategories(defaultCategories)
-        localStorage.setItem("blogCategories", JSON.stringify(defaultCategories))
-      } else {
-        setCategories(JSON.parse(savedCategories))
-      }
-
-      if (savedArticles) setArticles(JSON.parse(savedArticles))
-      setIsLoading(false)
+      Promise.all([api.get("/admin-api/blog/categories"), api.get("/admin-api/blog/posts")])
+        .then(([categoriesRes, postsRes]) => {
+          setCategories(categoriesRes.data || [])
+          setArticles(postsRes.data || [])
+        })
+        .catch((err) => {
+          console.error("Failed to load blog data", err)
+          setError("Ошибка загрузки данных")
+        })
+        .finally(() => setIsLoading(false))
     }
   }, [router])
 
-  const handleSaveCategory = () => {
+  const handleSaveCategory = async () => {
     if (!newCategory.nameRu || !newCategory.nameEn || !newCategory.slug) {
       alert("Заполните все поля")
       return
     }
 
-    const category: Category = {
-      id: Date.now().toString(),
-      name: { ru: newCategory.nameRu, en: newCategory.nameEn },
-      slug: newCategory.slug,
+    try {
+      const response = await api.post("/admin-api/blog/categories", {
+        name: { ru: newCategory.nameRu, en: newCategory.nameEn },
+        slug: newCategory.slug,
+      })
+      setCategories((prev) => [...prev, response.data])
+      setShowCategoryModal(false)
+      setNewCategory({ nameRu: "", nameEn: "", slug: "" })
+    } catch (err) {
+      console.error("Failed to create category", err)
+      alert("Не удалось создать категорию")
     }
-
-    const updated = [...categories, category]
-    setCategories(updated)
-    localStorage.setItem("blogCategories", JSON.stringify(updated))
-    setShowCategoryModal(false)
-    setNewCategory({ nameRu: "", nameEn: "", slug: "" })
   }
 
-  const handleDeleteCategory = (id: string) => {
+  const handleDeleteCategory = async (id: number) => {
     if (confirm("Удалить эту категорию?")) {
-      const updated = categories.filter((c) => c.id !== id)
-      setCategories(updated)
-      localStorage.setItem("blogCategories", JSON.stringify(updated))
+      try {
+        await api.delete(`/admin-api/blog/categories/${id}`)
+        setCategories((prev) => prev.filter((c) => c.id !== id))
+      } catch (err) {
+        console.error("Failed to delete category", err)
+        alert("Не удалось удалить категорию")
+      }
     }
   }
 
-  const handleDeleteArticle = (id: string) => {
+  const handleDeleteArticle = async (id: number) => {
     if (confirm("Удалить эту статью?")) {
-      const updated = articles.filter((a) => a.id !== id)
-      setArticles(updated)
-      localStorage.setItem("blogArticles", JSON.stringify(updated))
+      try {
+        await api.delete(`/admin-api/blog/posts/${id}`)
+        setArticles((prev) => prev.filter((a) => a.id !== id))
+      } catch (err) {
+        console.error("Failed to delete article", err)
+        alert("Не удалось удалить статью")
+      }
     }
   }
 
@@ -147,6 +163,7 @@ export default function AdminBlog() {
                     Добавить статью
                   </Link>
                 </div>
+                {error && <div className="text-red-400 text-sm mb-3">{error}</div>}
                 <div className="border border-gray-800 rounded-lg overflow-hidden">
                   <table className="min-w-full divide-y divide-gray-800">
                     <thead className="bg-[#0f0f0f]">
@@ -165,35 +182,39 @@ export default function AdminBlog() {
                           </td>
                         </tr>
                       ) : (
-                        articles.map((article) => (
-                          <tr key={article.id}>
-                            <td className="px-6 py-4 text-sm text-white">{article.title.ru}</td>
-                            <td className="px-6 py-4 text-sm text-gray-400">{article.category}</td>
-                            <td className="px-6 py-4 text-sm">
-                              <span
-                                className={`px-2 py-1 rounded-full text-xs ${
-                                  article.published ? "bg-green-900/30 text-green-400" : "bg-gray-800 text-gray-400"
-                                }`}
-                              >
-                                {article.published ? "Опубликовано" : "Черновик"}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 text-sm">
-                              <Link
-                                href={`/admin/blog/edit/${article.id}`}
-                                className="text-[#6B9BD1] hover:text-[#5a8bc4] mr-4"
-                              >
-                                Редактировать
-                              </Link>
-                              <button
-                                onClick={() => handleDeleteArticle(article.id)}
-                                className="text-red-400 hover:text-red-300"
-                              >
-                                Удалить
-                              </button>
-                            </td>
-                          </tr>
-                        ))
+                        articles.map((article) => {
+                          const category = categories.find((c) => c.id === article.category_id)
+                          const isPublished = article.status === "published"
+                          return (
+                            <tr key={article.id}>
+                              <td className="px-6 py-4 text-sm text-white">{article.title.ru}</td>
+                              <td className="px-6 py-4 text-sm text-gray-400">{category?.name.ru || "-"}</td>
+                              <td className="px-6 py-4 text-sm">
+                                <span
+                                  className={`px-2 py-1 rounded-full text-xs ${
+                                    isPublished ? "bg-green-900/30 text-green-400" : "bg-gray-800 text-gray-400"
+                                  }`}
+                                >
+                                  {isPublished ? "Опубликовано" : "Черновик"}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 text-sm">
+                                <Link
+                                  href={`/admin/blog/edit/${article.id}`}
+                                  className="text-[#6B9BD1] hover:text-[#5a8bc4] mr-4"
+                                >
+                                  Редактировать
+                                </Link>
+                                <button
+                                  onClick={() => handleDeleteArticle(article.id)}
+                                  className="text-red-400 hover:text-red-300"
+                                >
+                                  Удалить
+                                </button>
+                              </td>
+                            </tr>
+                          )
+                        })
                       )}
                     </tbody>
                   </table>
@@ -212,6 +233,7 @@ export default function AdminBlog() {
                     Добавить категорию
                   </button>
                 </div>
+                {error && <div className="text-red-400 text-sm mb-3">{error}</div>}
                 <div className="border border-gray-800 rounded-lg overflow-hidden">
                   <table className="min-w-full divide-y divide-gray-800">
                     <thead className="bg-[#0f0f0f]">
@@ -310,3 +332,4 @@ export default function AdminBlog() {
     </div>
   )
 }
+
