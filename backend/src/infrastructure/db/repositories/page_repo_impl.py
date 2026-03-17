@@ -1,4 +1,4 @@
-﻿"""Р РµР°Р»РёР·Р°С†РёСЏ СЂРµРїРѕР·РёС‚РѕСЂРёСЏ РґР»СЏ С‡С‚РµРЅРёСЏ РґР°РЅРЅС‹С…"""
+"""Реализация репозитория для чтения данных"""
 from typing import List
 from src.application.services.page_repository import IPageRepository
 from src.core.entities.page import (
@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 
 class PageRepositoryImpl(IPageRepository):
-    """Р РµР°Р»РёР·Р°С†РёСЏ IPageRepository СЃ РёСЃРїРѕР»СЊР·РѕРІР°РЅРёРµРј СЃС‚Р°С‚РёС‡РµСЃРєРёС… РґР°РЅРЅС‹С…"""
+    """Реализация IPageRepository с использованием статических данных"""
 
     def __init__(self, db_session: Session):
         self.db = db_session
@@ -25,7 +25,7 @@ class PageRepositoryImpl(IPageRepository):
             raise EntityNotFoundException("Hero not found")
 
         return HeroData(
-            greeting=LocalizedField(ru="РџСЂРёРІРµС‚, СЏ", en="Hi, I'm"),
+            greeting=LocalizedField(ru="Привет, я", en="Hi, I'm"),
             img=hero_row.image_url,
             name=LocalizedField(ru=hero_row.title_ru, en=hero_row.title_en),
             title=LocalizedField(ru=hero_row.subtitle_ru, en=hero_row.subtitle_en),
@@ -56,7 +56,7 @@ class PageRepositoryImpl(IPageRepository):
             ServiceEntity(
                 title=LocalizedField(ru=row.title_ru, en=row.title_en),
                 description=LocalizedField(ru=row.description_ru, en=row.description_en),
-                details=LocalizedList(ru=row.details_ru, en=row.details_en),  # в†ђ РР·РјРµРЅРµРЅРѕ РЅР° LocalizedList
+                details=LocalizedList(ru=row.details_ru, en=row.details_en),  # ← Изменено на LocalizedList
             )
             for row in services_rows
         ]
@@ -68,7 +68,7 @@ class PageRepositoryImpl(IPageRepository):
         return ServiceEntity(
             title=LocalizedField(ru=row.title_ru, en=row.title_en),
             description=LocalizedField(ru=row.description_ru, en=row.description_en),
-            details=LocalizedList(ru=row.details_ru, en=row.details_en),  # в†ђ РР·РјРµРЅРµРЅРѕ РЅР° LocalizedList
+            details=LocalizedList(ru=row.details_ru, en=row.details_en),  # ← Изменено на LocalizedList
         )
 
     def get_projects(self) -> List[ProjectEntity]:
@@ -80,7 +80,7 @@ class PageRepositoryImpl(IPageRepository):
             ProjectEntity(
                 title=LocalizedField(ru=row.title_ru, en=row.title_en),
                 description=LocalizedField(ru=row.description_ru, en=row.description_en),
-                tech=row.tech,  # РџРµСЂРµРґР°РµРј СЃРїРёСЃРѕРє С‚РµС…РЅРѕР»РѕРіРёР№
+                tech=row.tech,  # Передаем список технологий
                 demo_url=row.demo_url,
                 github_url=row.github_url
             ) for row in project_rows

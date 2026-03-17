@@ -196,16 +196,16 @@ export default function AdminHomePage() {
 
     try {
       const [heroRes, aboutRes, servicesRes, projectsRes, experienceRes, skillsRes, certificatesRes, personalRes, settingsRes, socialRes] = await Promise.all([
-        api.get("/admin/hero"),
-        api.get("/admin/about"),
-        api.get("/admin/services"),
-        api.get("/admin/projects"),
-        api.get("/admin/experience"),
-        api.get("/admin/skills"),
-        api.get(`/admin/certificates${showArchivedCertificates ? "?include_archived=true" : ""}`),
-        api.get(`/admin/personal${showArchivedPersonal ? "?include_archived=true" : ""}`),
-        api.get("/admin/settings"),
-        api.get("/admin/social-links"),
+        api.get("/admin-api/hero"),
+        api.get("/admin-api/about"),
+        api.get("/admin-api/services"),
+        api.get("/admin-api/projects"),
+        api.get("/admin-api/experience"),
+        api.get("/admin-api/skills"),
+        api.get(`/admin-api/certificates${showArchivedCertificates ? "?include_archived=true" : ""}`),
+        api.get(`/admin-api/personal${showArchivedPersonal ? "?include_archived=true" : ""}`),
+        api.get("/admin-api/settings"),
+        api.get("/admin-api/social-links"),
       ])
 
       setData({
@@ -240,7 +240,7 @@ export default function AdminHomePage() {
     setError(null)
 
     try {
-      const response = await api.put("/admin/hero", data.hero)
+      const response = await api.put("/admin-api/hero", data.hero)
       setData({ ...data, hero: response.data })
       showSaveSuccess()
     } catch (err) {
@@ -256,7 +256,7 @@ export default function AdminHomePage() {
     setError(null)
 
     try {
-      const response = await api.put("/admin/about", data.about)
+      const response = await api.put("/admin-api/about", data.about)
       setData({ ...data, about: response.data })
       showSaveSuccess()
     } catch (err) {
@@ -288,8 +288,8 @@ export default function AdminHomePage() {
     setError(null)
 
     try {
-      await api.put("/admin/settings", settingsData)
-      await api.put("/admin/social-links", socialLinks)
+      await api.put("/admin-api/settings", settingsData)
+      await api.put("/admin-api/social-links", socialLinks)
       showSaveSuccess()
     } catch (err) {
       console.error("Error saving contacts:", err)
@@ -321,11 +321,11 @@ export default function AdminHomePage() {
     try {
       if (editingService.id === 0) {
         // Создание новой услуги
-        const response = await api.post("/admin/services", editingService)
+        const response = await api.post("/admin-api/services", editingService)
         setData({ ...data, services: [...data.services, response.data] })
       } else {
         // Обновление существующей
-        const response = await api.put(`/admin/services/${editingService.id}`, editingService)
+        const response = await api.put(`/admin-api/services/${editingService.id}`, editingService)
         setData({
           ...data,
           services: data.services.map(s => s.id === editingService.id ? response.data : s)
@@ -346,7 +346,7 @@ export default function AdminHomePage() {
 
     setIsSaving(true)
     try {
-      await api.delete(`/admin/services/${id}`)
+      await api.delete(`/admin-api/services/${id}`)
       setData({ ...data, services: data.services.filter(s => s.id !== id) })
       showSaveSuccess()
     } catch (err) {
@@ -379,10 +379,10 @@ export default function AdminHomePage() {
 
     try {
       if (editingProject.id === 0) {
-        const response = await api.post("/admin/projects", editingProject)
+        const response = await api.post("/admin-api/projects", editingProject)
         setData({ ...data, projects: [...data.projects, response.data] })
       } else {
-        const response = await api.put(`/admin/projects/${editingProject.id}`, editingProject)
+        const response = await api.put(`/admin-api/projects/${editingProject.id}`, editingProject)
         setData({
           ...data,
           projects: data.projects.map(p => p.id === editingProject.id ? response.data : p)
@@ -403,7 +403,7 @@ export default function AdminHomePage() {
 
     setIsSaving(true)
     try {
-      await api.delete(`/admin/projects/${id}`)
+      await api.delete(`/admin-api/projects/${id}`)
       setData({ ...data, projects: data.projects.filter(p => p.id !== id) })
       showSaveSuccess()
     } catch (err) {
@@ -435,10 +435,10 @@ export default function AdminHomePage() {
 
     try {
       if (editingExperience.id === 0) {
-        const response = await api.post("/admin/experience", editingExperience)
+        const response = await api.post("/admin-api/experience", editingExperience)
         setData({ ...data, experience: [...data.experience, response.data] })
       } else {
-        const response = await api.put(`/admin/experience/${editingExperience.id}`, editingExperience)
+        const response = await api.put(`/admin-api/experience/${editingExperience.id}`, editingExperience)
         setData({
           ...data,
           experience: data.experience.map(e => e.id === editingExperience.id ? response.data : e)
@@ -459,7 +459,7 @@ export default function AdminHomePage() {
 
     setIsSaving(true)
     try {
-      await api.delete(`/admin/experience/${id}`)
+      await api.delete(`/admin-api/experience/${id}`)
       setData({ ...data, experience: data.experience.filter(e => e.id !== id) })
       showSaveSuccess()
     } catch (err) {
@@ -489,10 +489,10 @@ export default function AdminHomePage() {
 
     try {
       if (editingSkillCategory.id === 0) {
-        const response = await api.post("/admin/skills", editingSkillCategory)
+        const response = await api.post("/admin-api/skills", editingSkillCategory)
         setData({ ...data, skills: [...data.skills, response.data] })
       } else {
-        const response = await api.put(`/admin/skills/${editingSkillCategory.id}`, editingSkillCategory)
+        const response = await api.put(`/admin-api/skills/${editingSkillCategory.id}`, editingSkillCategory)
         setData({
           ...data,
           skills: data.skills.map(s => s.id === editingSkillCategory.id ? response.data : s)
@@ -513,7 +513,7 @@ export default function AdminHomePage() {
 
     setIsSaving(true)
     try {
-      await api.delete(`/admin/skills/${id}`)
+      await api.delete(`/admin-api/skills/${id}`)
       setData({ ...data, skills: data.skills.filter(s => s.id !== id) })
       showSaveSuccess()
     } catch (err) {
@@ -548,10 +548,10 @@ export default function AdminHomePage() {
 
     try {
       if (editingCertificate.id === 0) {
-        const response = await api.post("/admin/certificates", editingCertificate)
+        const response = await api.post("/admin-api/certificates", editingCertificate)
         setData({ ...data, certificates: [...data.certificates, response.data] })
       } else {
-        const response = await api.put(`/admin/certificates/${editingCertificate.id}`, editingCertificate)
+        const response = await api.put(`/admin-api/certificates/${editingCertificate.id}`, editingCertificate)
         setData({
           ...data,
           certificates: data.certificates.map(c => c.id === editingCertificate.id ? response.data : c)
@@ -572,7 +572,7 @@ export default function AdminHomePage() {
 
     setIsSaving(true)
     try {
-      await api.delete(`/admin/certificates/${id}`)
+      await api.delete(`/admin-api/certificates/${id}`)
       setData({ ...data, certificates: data.certificates.filter(c => c.id !== id) })
       showSaveSuccess()
     } catch (err) {
@@ -586,7 +586,7 @@ export default function AdminHomePage() {
   const restoreCertificate = async (id: number) => {
     setIsSaving(true)
     try {
-      await api.post(`/admin/certificates/${id}/restore`)
+      await api.post(`/admin-api/certificates/${id}/restore`)
       loadAllData()
       showSaveSuccess()
     } catch (err) {
@@ -618,10 +618,10 @@ export default function AdminHomePage() {
 
     try {
       if (editingPersonalFact.id === 0) {
-        const response = await api.post("/admin/personal", editingPersonalFact)
+        const response = await api.post("/admin-api/personal", editingPersonalFact)
         setData({ ...data, personal: [...data.personal, response.data] })
       } else {
-        const response = await api.put(`/admin/personal/${editingPersonalFact.id}`, editingPersonalFact)
+        const response = await api.put(`/admin-api/personal/${editingPersonalFact.id}`, editingPersonalFact)
         setData({
           ...data,
           personal: data.personal.map(p => p.id === editingPersonalFact.id ? response.data : p)
@@ -642,7 +642,7 @@ export default function AdminHomePage() {
 
     setIsSaving(true)
     try {
-      await api.delete(`/admin/personal/${id}`)
+      await api.delete(`/admin-api/personal/${id}`)
       setData({ ...data, personal: data.personal.filter(p => p.id !== id) })
       showSaveSuccess()
     } catch (err) {
@@ -656,7 +656,7 @@ export default function AdminHomePage() {
   const restorePersonalFact = async (id: number) => {
     setIsSaving(true)
     try {
-      await api.post(`/admin/personal/${id}/restore`)
+      await api.post(`/admin-api/personal/${id}/restore`)
       loadAllData()
       showSaveSuccess()
     } catch (err) {
@@ -685,7 +685,7 @@ export default function AdminHomePage() {
         try {
           const formData = new FormData()
           formData.append("file", file)
-          const response = await api.post("/admin/projects/upload-image", formData, {
+          const response = await api.post("/admin-api/projects/upload-image", formData, {
             headers: { "Content-Type": "multipart/form-data" },
           })
           const url = response.data?.url
@@ -711,7 +711,7 @@ export default function AdminHomePage() {
     try {
       const formData = new FormData()
       formData.append("file", file)
-      const response = await api.post(`/admin/hero/upload-resume?lang=${lang}`, formData, {
+      const response = await api.post(`/admin-api/hero/upload-resume?lang=${lang}`, formData, {
         headers: { "Content-Type": "multipart/form-data" },
       })
       const url = response.data?.url
@@ -735,7 +735,7 @@ export default function AdminHomePage() {
     try {
       const formData = new FormData()
       formData.append("file", file)
-      const response = await api.post("/admin/certificates/upload-image", formData, {
+      const response = await api.post("/admin-api/certificates/upload-image", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       })
       const url = response.data?.url

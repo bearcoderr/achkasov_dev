@@ -16,7 +16,8 @@ from src.infrastructure.db.models import (
     LoginRequest as LoginRequestModel,
     Hero, About, Service, Project,
     Experience, Skills, Personal, Certificate,
-    ContactMessage, Settings
+    ContactMessage, Settings,
+    BlogCategory, BlogTag, BlogPost, BlogPostTag
 )
 
 from src.infrastructure.api.admin.schemas.admin_schemas import (
@@ -29,7 +30,10 @@ from src.infrastructure.api.admin.schemas.admin_schemas import (
     SkillCategoryCreateRequest, SkillCategoryUpdateRequest, SkillCategoryResponse,
     CertificateCreateRequest, CertificateUpdateRequest, CertificateResponse,
     PersonalFactCreateRequest, PersonalFactUpdateRequest, PersonalFactResponse,
-    SettingsUpdateRequest
+    SettingsUpdateRequest,
+    BlogCategoryCreateRequest, BlogCategoryUpdateRequest, BlogCategoryResponse,
+    BlogTagCreateRequest, BlogTagUpdateRequest, BlogTagResponse,
+    BlogPostCreateRequest, BlogPostUpdateRequest, BlogPostResponse
 )
 from src.shared.config import settings
 
@@ -44,6 +48,8 @@ logger = logging.getLogger(__name__)
 
 PROJECTS_UPLOAD_DIR = Path(settings.upload_dir) / "projects"
 CERTIFICATES_UPLOAD_DIR = Path(settings.upload_dir) / "certificates"
+BLOG_UPLOAD_DIR = Path(settings.upload_dir) / "blog"
+BLOG_UPLOAD_DIR = Path(settings.upload_dir) / "blog"
 RESUME_UPLOAD_DIR = Path(settings.upload_dir) / "resume"
 
 def localized(ru_value: Optional[str], en_value: Optional[str]) -> dict:
@@ -871,6 +877,16 @@ def upload_certificate_image(
     return {"url": url}
 
 
+@router.post("/blog/upload-image")
+def upload_blog_image(
+        file: UploadFile = File(...),
+        user: dict = Depends(verify_token)
+):
+    """Upload blog image and return public URL."""
+    url = save_uploaded_file(file, BLOG_UPLOAD_DIR)
+    return {"url": url}
+
+
 # ============= PERSONAL FACTS ENDPOINTS =============
 
 @router.get("/personal", response_model=List[PersonalFactResponse])
@@ -999,6 +1015,405 @@ def restore_personal_fact(
     db.commit()
 
     return {"success": True, "message": "Personal fact restored"}
+
+
+# ============= BLOG ENDPOINTS =============
+
+def _ensure_blog_category(db: Session, category_id: Optional[int]) -> None:
+    if category_id is None:
+        return
+    exists = db.query(BlogCategory).filter(BlogCategory.id == category_id).first()
+    if not exists:
+        raise HTTPException(status_code=400, detail="Blog category not found")
+
+
+def _ensure_blog_tags(db: Session, tag_ids: List[int]) -> None:
+    if not tag_ids:
+        return
+    existing = db.query(BlogTag.id).filter(BlogTag.id.in_(tag_ids)).all()
+    existing_ids = {row[0] for row in existing}
+    missing = sorted(set(tag_ids) - existing_ids)
+    if missing:
+        raise HTTPException(status_code=400, detail=f"Blog tags not found: {missing}")
+
+
+def _get_post_tag_ids(db: Session, post_id: int) -> List[int]:
+    rows = db.query(BlogPostTag.tag_id).filter(BlogPostTag.post_id == post_id).all()
+    return [row[0] for row in rows]
+
+
+@router.get("/blog/categories", response_model=List[BlogCategoryResponse])
+def get_blog_categories_admin(
+        db: Session = Depends(get_db),
+        user: dict = Depends(verify_token)
+):
+    categories = db.query(BlogCategory).order_by(BlogCategory.order).all()
+    return [{
+        "id": c.id,
+        "name": localized(c.name_ru, c.name_en),
+        "slug": c.slug,
+        "order": c.order,
+        "is_active": c.is_active,
+    } for c in categories]
+
+
+@router.post("/blog/categories", response_model=BlogCategoryResponse)
+def create_blog_category(
+        request: BlogCategoryCreateRequest,
+        db: Session = Depends(get_db),
+        user: dict = Depends(verify_token)
+):
+    exists = db.query(BlogCategory).filter(BlogCategory.slug == request.slug).first()
+    if exists:
+        raise HTTPException(status_code=400, detail="Category slug already exists")
+
+    max_order = db.query(BlogCategory).count()
+    order_value = request.order if request.order is not None else max_order
+    is_active_value = True if request.is_active is None else request.is_active
+
+    category = BlogCategory(
+        name_ru=request.name.ru,
+        name_en=request.name.en,
+        slug=request.slug,
+        order=order_value,
+        is_active=is_active_value
+    )
+    db.add(category)
+    db.commit()
+    db.refresh(category)
+
+    return {
+        "id": category.id,
+        "name": localized(category.name_ru, category.name_en),
+        "slug": category.slug,
+        "order": category.order,
+        "is_active": category.is_active,
+    }
+
+
+@router.put("/blog/categories/{category_id}", response_model=BlogCategoryResponse)
+def update_blog_category(
+        category_id: int,
+        request: BlogCategoryUpdateRequest,
+        db: Session = Depends(get_db),
+        user: dict = Depends(verify_token)
+):
+    category = db.query(BlogCategory).filter(BlogCategory.id == category_id).first()
+    if not category:
+        raise HTTPException(status_code=404, detail="Category not found")
+
+    slug_exists = db.query(BlogCategory).filter(
+        BlogCategory.slug == request.slug,
+        BlogCategory.id != category_id
+    ).first()
+    if slug_exists:
+        raise HTTPException(status_code=400, detail="Category slug already exists")
+
+    category.name_ru = request.name.ru
+    category.name_en = request.name.en
+    category.slug = request.slug
+    if request.order is not None:
+        category.order = request.order
+    if request.is_active is not None:
+        category.is_active = request.is_active
+
+    db.commit()
+    db.refresh(category)
+
+    return {
+        "id": category.id,
+        "name": localized(category.name_ru, category.name_en),
+        "slug": category.slug,
+        "order": category.order,
+        "is_active": category.is_active,
+    }
+
+
+@router.delete("/blog/categories/{category_id}")
+def delete_blog_category(
+        category_id: int,
+        db: Session = Depends(get_db),
+        user: dict = Depends(verify_token)
+):
+    category = db.query(BlogCategory).filter(BlogCategory.id == category_id).first()
+    if not category:
+        raise HTTPException(status_code=404, detail="Category not found")
+
+    category.is_active = False
+    db.commit()
+    return {"success": True, "message": "Category archived"}
+
+
+@router.get("/blog/tags", response_model=List[BlogTagResponse])
+def get_blog_tags_admin(
+        db: Session = Depends(get_db),
+        user: dict = Depends(verify_token)
+):
+    tags = db.query(BlogTag).order_by(BlogTag.id.desc()).all()
+    return [{
+        "id": t.id,
+        "name": localized(t.name_ru, t.name_en),
+        "slug": t.slug,
+    } for t in tags]
+
+
+@router.post("/blog/tags", response_model=BlogTagResponse)
+def create_blog_tag(
+        request: BlogTagCreateRequest,
+        db: Session = Depends(get_db),
+        user: dict = Depends(verify_token)
+):
+    exists = db.query(BlogTag).filter(BlogTag.slug == request.slug).first()
+    if exists:
+        raise HTTPException(status_code=400, detail="Tag slug already exists")
+
+    tag = BlogTag(
+        name_ru=request.name.ru,
+        name_en=request.name.en,
+        slug=request.slug
+    )
+    db.add(tag)
+    db.commit()
+    db.refresh(tag)
+
+    return {
+        "id": tag.id,
+        "name": localized(tag.name_ru, tag.name_en),
+        "slug": tag.slug,
+    }
+
+
+@router.put("/blog/tags/{tag_id}", response_model=BlogTagResponse)
+def update_blog_tag(
+        tag_id: int,
+        request: BlogTagUpdateRequest,
+        db: Session = Depends(get_db),
+        user: dict = Depends(verify_token)
+):
+    tag = db.query(BlogTag).filter(BlogTag.id == tag_id).first()
+    if not tag:
+        raise HTTPException(status_code=404, detail="Tag not found")
+
+    slug_exists = db.query(BlogTag).filter(
+        BlogTag.slug == request.slug,
+        BlogTag.id != tag_id
+    ).first()
+    if slug_exists:
+        raise HTTPException(status_code=400, detail="Tag slug already exists")
+
+    tag.name_ru = request.name.ru
+    tag.name_en = request.name.en
+    tag.slug = request.slug
+
+    db.commit()
+    db.refresh(tag)
+
+    return {
+        "id": tag.id,
+        "name": localized(tag.name_ru, tag.name_en),
+        "slug": tag.slug,
+    }
+
+
+@router.delete("/blog/tags/{tag_id}")
+def delete_blog_tag(
+        tag_id: int,
+        db: Session = Depends(get_db),
+        user: dict = Depends(verify_token)
+):
+    tag = db.query(BlogTag).filter(BlogTag.id == tag_id).first()
+    if not tag:
+        raise HTTPException(status_code=404, detail="Tag not found")
+
+    db.query(BlogPostTag).filter(BlogPostTag.tag_id == tag_id).delete()
+    db.delete(tag)
+    db.commit()
+    return {"success": True, "message": "Tag deleted"}
+
+
+@router.get("/blog/posts", response_model=List[BlogPostResponse])
+def get_blog_posts_admin(
+        db: Session = Depends(get_db),
+        user: dict = Depends(verify_token)
+):
+    posts = db.query(BlogPost).order_by(BlogPost.created_at.desc()).all()
+    return [{
+        "id": p.id,
+        "slug": p.slug,
+        "category_id": p.category_id,
+        "status": p.status,
+        "is_active": p.is_active,
+        "published_at": p.published_at,
+        "cover_image_url": p.cover_image_url or "",
+        "title": localized(p.title_ru, p.title_en),
+        "excerpt": localized(p.excerpt_ru, p.excerpt_en),
+        "content": localized(p.content_ru, p.content_en),
+        "tag_ids": _get_post_tag_ids(db, p.id)
+    } for p in posts]
+
+
+@router.get("/blog/posts/{post_id}", response_model=BlogPostResponse)
+def get_blog_post_admin(
+        post_id: int,
+        db: Session = Depends(get_db),
+        user: dict = Depends(verify_token)
+):
+    post = db.query(BlogPost).filter(BlogPost.id == post_id).first()
+    if not post:
+        raise HTTPException(status_code=404, detail="Post not found")
+
+    return {
+        "id": post.id,
+        "slug": post.slug,
+        "category_id": post.category_id,
+        "status": post.status,
+        "is_active": post.is_active,
+        "published_at": post.published_at,
+        "cover_image_url": post.cover_image_url or "",
+        "title": localized(post.title_ru, post.title_en),
+        "excerpt": localized(post.excerpt_ru, post.excerpt_en),
+        "content": localized(post.content_ru, post.content_en),
+        "tag_ids": _get_post_tag_ids(db, post.id)
+    }
+
+
+@router.post("/blog/posts", response_model=BlogPostResponse)
+def create_blog_post(
+        request: BlogPostCreateRequest,
+        db: Session = Depends(get_db),
+        user: dict = Depends(verify_token)
+):
+    exists = db.query(BlogPost).filter(BlogPost.slug == request.slug).first()
+    if exists:
+        raise HTTPException(status_code=400, detail="Post slug already exists")
+
+    _ensure_blog_category(db, request.category_id)
+    _ensure_blog_tags(db, request.tag_ids)
+
+    status_value = (request.status or "draft").lower()
+    if status_value not in {"draft", "published", "archived"}:
+        raise HTTPException(status_code=400, detail="Invalid status")
+
+    published_at_value = request.published_at
+    if status_value == "published" and published_at_value is None:
+        published_at_value = datetime.datetime.utcnow()
+
+    post = BlogPost(
+        slug=request.slug,
+        category_id=request.category_id,
+        status=status_value,
+        is_active=True if request.is_active is None else request.is_active,
+        published_at=published_at_value,
+        cover_image_url=request.cover_image_url,
+        title_ru=request.title.ru,
+        excerpt_ru=request.excerpt.ru,
+        content_ru=request.content.ru,
+        title_en=request.title.en,
+        excerpt_en=request.excerpt.en,
+        content_en=request.content.en
+    )
+    db.add(post)
+    db.commit()
+    db.refresh(post)
+
+    for tag_id in set(request.tag_ids or []):
+        db.add(BlogPostTag(post_id=post.id, tag_id=tag_id))
+    db.commit()
+
+    return {
+        "id": post.id,
+        "slug": post.slug,
+        "category_id": post.category_id,
+        "status": post.status,
+        "is_active": post.is_active,
+        "published_at": post.published_at,
+        "cover_image_url": post.cover_image_url or "",
+        "title": localized(post.title_ru, post.title_en),
+        "excerpt": localized(post.excerpt_ru, post.excerpt_en),
+        "content": localized(post.content_ru, post.content_en),
+        "tag_ids": _get_post_tag_ids(db, post.id)
+    }
+
+
+@router.put("/blog/posts/{post_id}", response_model=BlogPostResponse)
+def update_blog_post(
+        post_id: int,
+        request: BlogPostUpdateRequest,
+        db: Session = Depends(get_db),
+        user: dict = Depends(verify_token)
+):
+    post = db.query(BlogPost).filter(BlogPost.id == post_id).first()
+    if not post:
+        raise HTTPException(status_code=404, detail="Post not found")
+
+    slug_exists = db.query(BlogPost).filter(
+        BlogPost.slug == request.slug,
+        BlogPost.id != post_id
+    ).first()
+    if slug_exists:
+        raise HTTPException(status_code=400, detail="Post slug already exists")
+
+    _ensure_blog_category(db, request.category_id)
+    _ensure_blog_tags(db, request.tag_ids)
+
+    status_value = (request.status or "draft").lower()
+    if status_value not in {"draft", "published", "archived"}:
+        raise HTTPException(status_code=400, detail="Invalid status")
+
+    post.slug = request.slug
+    post.category_id = request.category_id
+    post.status = status_value
+    if request.is_active is not None:
+        post.is_active = request.is_active
+
+    if status_value == "published" and request.published_at is None and post.published_at is None:
+        post.published_at = datetime.datetime.utcnow()
+    else:
+        post.published_at = request.published_at
+
+    post.cover_image_url = request.cover_image_url
+    post.title_ru = request.title.ru
+    post.excerpt_ru = request.excerpt.ru
+    post.content_ru = request.content.ru
+    post.title_en = request.title.en
+    post.excerpt_en = request.excerpt.en
+    post.content_en = request.content.en
+
+    db.query(BlogPostTag).filter(BlogPostTag.post_id == post_id).delete()
+    for tag_id in set(request.tag_ids or []):
+        db.add(BlogPostTag(post_id=post_id, tag_id=tag_id))
+
+    db.commit()
+    db.refresh(post)
+
+    return {
+        "id": post.id,
+        "slug": post.slug,
+        "category_id": post.category_id,
+        "status": post.status,
+        "is_active": post.is_active,
+        "published_at": post.published_at,
+        "cover_image_url": post.cover_image_url or "",
+        "title": localized(post.title_ru, post.title_en),
+        "excerpt": localized(post.excerpt_ru, post.excerpt_en),
+        "content": localized(post.content_ru, post.content_en),
+        "tag_ids": _get_post_tag_ids(db, post.id)
+    }
+
+
+@router.delete("/blog/posts/{post_id}")
+def delete_blog_post(
+        post_id: int,
+        db: Session = Depends(get_db),
+        user: dict = Depends(verify_token)
+):
+    post = db.query(BlogPost).filter(BlogPost.id == post_id).first()
+    if not post:
+        raise HTTPException(status_code=404, detail="Post not found")
+
+    post.is_active = False
+    db.commit()
+    return {"success": True, "message": "Post archived"}
 
 
 # ============= SUBMISSIONS ENDPOINTS (без изменений) =============
@@ -1131,5 +1546,6 @@ def update_social_links(
     db.commit()
     db.refresh(hero)
     return {"success": True}
+
 
 

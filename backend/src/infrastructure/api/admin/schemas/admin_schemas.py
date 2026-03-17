@@ -215,3 +215,73 @@ class SettingsUpdateRequest(BaseModel):
     contact_title: LocalizedData
     contact_description: LocalizedData
     footer_rights: LocalizedData
+
+# Blog Schemas
+class BlogCategoryCreateRequest(BaseModel):
+    name: LocalizedData
+    slug: str
+    order: Optional[int] = None
+    is_active: Optional[bool] = None
+
+class BlogCategoryUpdateRequest(BaseModel):
+    name: LocalizedData
+    slug: str
+    order: Optional[int] = None
+    is_active: Optional[bool] = None
+
+class BlogCategoryResponse(BaseModel):
+    id: int
+    name: LocalizedData
+    slug: str
+    order: Optional[int] = None
+    is_active: Optional[bool] = None
+
+class BlogTagCreateRequest(BaseModel):
+    name: LocalizedData
+    slug: str
+
+class BlogTagUpdateRequest(BaseModel):
+    name: LocalizedData
+    slug: str
+
+class BlogTagResponse(BaseModel):
+    id: int
+    name: LocalizedData
+    slug: str
+
+class BlogPostCreateRequest(BaseModel):
+    slug: str
+    category_id: Optional[int] = None
+    status: Optional[str] = "draft"
+    is_active: Optional[bool] = True
+    published_at: Optional[datetime] = None
+    cover_image_url: Optional[str] = None
+    title: LocalizedData
+    excerpt: LocalizedData
+    content: LocalizedData
+    tag_ids: List[int] = []
+
+class BlogPostUpdateRequest(BaseModel):
+    slug: str
+    category_id: Optional[int] = None
+    status: Optional[str] = "draft"
+    is_active: Optional[bool] = True
+    published_at: Optional[datetime] = None
+    cover_image_url: Optional[str] = None
+    title: LocalizedData
+    excerpt: LocalizedData
+    content: LocalizedData
+    tag_ids: List[int] = []
+
+class BlogPostResponse(BaseModel):
+    id: int
+    slug: str
+    category_id: Optional[int] = None
+    status: str
+    is_active: Optional[bool] = None
+    published_at: Optional[datetime] = None
+    cover_image_url: Optional[str] = None
+    title: LocalizedData
+    excerpt: LocalizedData
+    content: LocalizedData
+    tag_ids: List[int]

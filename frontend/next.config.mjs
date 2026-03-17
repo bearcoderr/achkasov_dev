@@ -16,7 +16,7 @@ const nextConfig = {
         destination: `${backendUrl}/api/:path*`,
       },
       {
-        source: '/admin/:path*',
+        source: '/admin-api/:path*',
         destination: `${backendUrl}/admin/:path*`,
       },
       {

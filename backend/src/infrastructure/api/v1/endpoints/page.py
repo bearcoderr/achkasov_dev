@@ -6,7 +6,8 @@ from sqlalchemy.orm import Session
 from src.infrastructure.db.database import get_db
 from src.infrastructure.db.models import (
     Hero, About, Service, Project,
-    Experience, Skills, ContactMessage, Settings, Personal, Certificate
+    Experience, Skills, ContactMessage, Settings, Personal, Certificate,
+    BlogPost, BlogCategory
 )
 
 import logging
@@ -310,3 +311,37 @@ def get_full_page_data(db: Session = Depends(get_db)):
     except Exception as e:
         logger.error(f"Error fetching page data: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============= BLOG (PUBLIC) =============
+
+@router.get("/blog/posts")
+def get_blog_posts(limit: int = 3, db: Session = Depends(get_db)):
+    """Get latest published blog posts for public frontend."""
+    from sqlalchemy import desc
+
+    posts = (
+        db.query(BlogPost, BlogCategory)
+        .outerjoin(BlogCategory, BlogPost.category_id == BlogCategory.id)
+        .filter(BlogPost.is_active == True, BlogPost.status == "published")
+        .order_by(desc(BlogPost.published_at), desc(BlogPost.created_at))
+        .limit(limit)
+        .all()
+    )
+
+    return [
+        {
+            "id": post.id,
+            "slug": post.slug,
+            "title": {"ru": post.title_ru or "", "en": post.title_en or ""},
+            "excerpt": {"ru": post.excerpt_ru or "", "en": post.excerpt_en or ""},
+            "cover_image_url": post.cover_image_url or "",
+            "published_at": post.published_at.isoformat() if post.published_at else None,
+            "category": {
+                "id": category.id,
+                "name": {"ru": category.name_ru or "", "en": category.name_en or ""},
+                "slug": category.slug,
+            } if category else None,
+        }
+        for post, category in posts
+    ]

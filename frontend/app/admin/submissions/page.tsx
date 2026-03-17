@@ -1,4 +1,4 @@
-"use client"
+?"use client"
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
@@ -26,7 +26,7 @@ export default function AdminSubmissions() {
     } else {
       const fetchSubmissions = async () => {
         try {
-          const response = await fetch("http://localhost:8000/admin/submissions")
+          const response = await fetch("/admin-api/submissions")
           const data = await response.json()
           const normalized = data.map(sub => ({
             ...sub,
@@ -48,7 +48,7 @@ export default function AdminSubmissions() {
   const markAsRead = async (id: string) => {
     try {
       // Отправляем PUT-запрос на сервер
-      await fetch(`http://localhost:8000/admin/submissions/${id}/read`, {
+      await fetch(`/admin-api/submissions/${id}/read`, {
         method: "PUT",
       })
 

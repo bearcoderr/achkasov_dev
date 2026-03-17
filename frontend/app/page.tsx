@@ -11,6 +11,20 @@ import { ChevronRight } from "lucide-react"
 import ScrollReveal from "@/components/scroll-reveal"
 import { api, type PageData } from "@/lib/api"
 
+interface BlogPost {
+  id: number
+  slug: string
+  title: Record<"ru" | "en", string>
+  excerpt: Record<"ru" | "en", string>
+  cover_image_url?: string
+  published_at?: string | null
+  category?: {
+    id: number
+    name: Record<"ru" | "en", string>
+    slug: string
+  } | null
+}
+
 export default function Home() {
   const [lang, setLang] = useState<"ru" | "en">("ru")
   const [selectedService, setSelectedService] = useState<number | null>(null)
@@ -22,6 +36,7 @@ export default function Home() {
   const [pageData, setPageData] = useState<PageData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [blogPosts, setBlogPosts] = useState<BlogPost[]>([])
 
   // Убираем hydration mismatch - загружаем язык только после монтирования
   useEffect(() => {
@@ -39,6 +54,16 @@ export default function Home() {
 
         const data = await api.getPageData()
         setPageData(data)
+
+        try {
+          const blogRes = await fetch("/api/blog/posts?limit=3", { cache: "no-store" })
+          if (blogRes.ok) {
+            const blogData = await blogRes.json()
+            setBlogPosts(Array.isArray(blogData) ? blogData : [])
+          }
+        } catch (blogErr) {
+          console.warn("Failed to load blog posts", blogErr)
+        }
       } catch (err) {
         console.error('Error fetching data:', err)
         setError(err instanceof Error ? err.message : 'Unknown error')
@@ -203,7 +228,17 @@ export default function Home() {
     blog: {
       title: lang === "ru" ? "Блог" : "Blog",
       viewAll: lang === "ru" ? "Все статьи" : "View all posts",
+      items: blogPosts.map((post) => ({
+        id: post.id,
+        slug: post.slug,
+        title: post.title?.[currentLang] ?? "",
+        excerpt: post.excerpt?.[currentLang] ?? "",
+        date: post.published_at ?? "",
+        category: post.category?.name?.[currentLang] ?? "",
+        image: post.cover_image_url ?? "",
+      })),
     }
+
 
   }
 
@@ -448,25 +483,23 @@ export default function Home() {
               </Link>
             </div>
             <div className="grid gap-8 md:grid-cols-3">
-              {[1, 2, 3].map((i) => (
-                <Link key={i} href={`/blog/article-${i}`} className="group">
-                  <Card className="glass-card border-border/40 p-8 transition-all hover:border-primary/40">
-                    <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                      {lang === "ru" ? "15 января 2024" : "January 15, 2024"}
-                    </p>
-                    <h3 className="mb-3 text-xl font-semibold group-hover:text-primary">
-                      {lang === "ru"
-                        ? ["Django: лучшие практики", "JWT аутентификация", "Docker для Django"][i - 1]
-                        : ["Django: Best Practices", "JWT Authentication", "Docker for Django"][i - 1]}
-                    </h3>
-                    <p className="text-sm leading-relaxed text-muted-foreground">
-                      {lang === "ru"
-                        ? "Разбираемся с современными подходами к разработке..."
-                        : "Exploring modern development approaches..."}
-                    </p>
-                  </Card>
-                </Link>
-              ))}
+              {t.blog.items.length === 0 ? (
+                <div className="text-sm text-muted-foreground">
+                  {lang === "ru" ? "Пока нет опубликованных статей." : "No published posts yet."}
+                </div>
+              ) : (
+                t.blog.items.map((post) => (
+                  <Link key={post.id} href={`/blog/${post.slug}`} className="group">
+                    <Card className="glass-card border-border/40 p-8 transition-all hover:border-primary/40">
+                      <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                        {post.date ? new Date(post.date).toLocaleDateString(lang === "ru" ? "ru-RU" : "en-US") : ""}
+                      </p>
+                      <h3 className="mb-3 text-xl font-semibold group-hover:text-primary">{post.title}</h3>
+                      <p className="text-sm leading-relaxed text-muted-foreground">{post.excerpt}</p>
+                    </Card>
+                  </Link>
+                ))
+              )}
             </div>
           </section>
         </ScrollReveal>
