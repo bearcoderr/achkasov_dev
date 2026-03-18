@@ -1,13 +1,14 @@
 """API endpoints для фронтенда (public) - ПОЛНАЯ ВЕРСИЯ"""
 from fastapi import APIRouter, Depends, HTTPException
-from typing import List
+from typing import List, Optional
 from datetime import datetime
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from src.infrastructure.db.database import get_db
 from src.infrastructure.db.models import (
     Hero, About, Service, Project,
     Experience, Skills, ContactMessage, Settings, Personal, Certificate,
-    BlogPost, BlogCategory
+    BlogPost, BlogCategory, BlogComment
 )
 
 import logging
@@ -316,18 +317,35 @@ def get_full_page_data(db: Session = Depends(get_db)):
 # ============= BLOG (PUBLIC) =============
 
 @router.get("/blog/posts")
-def get_blog_posts(limit: int = 3, db: Session = Depends(get_db)):
-    """Get latest published blog posts for public frontend."""
-    from sqlalchemy import desc
+def get_blog_posts(
+    limit: int | None = 3,
+    category: str | None = None,
+    sort: str = "newest",
+    db: Session = Depends(get_db),
+):
+    """Get published blog posts for public frontend."""
+    from sqlalchemy import desc, asc
 
-    posts = (
+    query = (
         db.query(BlogPost, BlogCategory)
         .outerjoin(BlogCategory, BlogPost.category_id == BlogCategory.id)
         .filter(BlogPost.is_active == True, BlogPost.status == "published")
-        .order_by(desc(BlogPost.published_at), desc(BlogPost.created_at))
-        .limit(limit)
-        .all()
     )
+
+    if category:
+        query = query.filter(BlogCategory.slug == category)
+
+    if sort == "oldest":
+        query = query.order_by(asc(BlogPost.published_at), asc(BlogPost.created_at))
+    elif sort == "title":
+        query = query.order_by(asc(BlogPost.title_ru))
+    else:
+        query = query.order_by(desc(BlogPost.published_at), desc(BlogPost.created_at))
+
+    if limit is not None:
+        query = query.limit(limit)
+
+    posts = query.all()
 
     return [
         {
@@ -338,10 +356,165 @@ def get_blog_posts(limit: int = 3, db: Session = Depends(get_db)):
             "cover_image_url": post.cover_image_url or "",
             "published_at": post.published_at.isoformat() if post.published_at else None,
             "category": {
-                "id": category.id,
-                "name": {"ru": category.name_ru or "", "en": category.name_en or ""},
-                "slug": category.slug,
-            } if category else None,
+                "id": category_row.id,
+                "name": {"ru": category_row.name_ru or "", "en": category_row.name_en or ""},
+                "slug": category_row.slug,
+            } if category_row else None,
         }
-        for post, category in posts
+        for post, category_row in posts
     ]
+
+
+@router.get("/blog/categories")
+def get_blog_categories(db: Session = Depends(get_db)):
+    """Get blog categories for public frontend."""
+    categories = (
+        db.query(BlogCategory)
+        .filter(BlogCategory.is_active == True)
+        .order_by(BlogCategory.order)
+        .all()
+    )
+
+    return [
+        {
+            "id": category.id,
+            "slug": category.slug,
+            "name": {"ru": category.name_ru or "", "en": category.name_en or ""},
+        }
+        for category in categories
+    ]
+
+
+@router.get("/blog/posts/{slug}")
+def get_blog_post_by_slug(slug: str, db: Session = Depends(get_db)):
+    """Get a single published blog post by slug."""
+    post_row = (
+        db.query(BlogPost, BlogCategory)
+        .outerjoin(BlogCategory, BlogPost.category_id == BlogCategory.id)
+        .filter(
+            BlogPost.is_active == True,
+            BlogPost.status == "published",
+            BlogPost.slug == slug,
+        )
+        .first()
+    )
+
+    if not post_row:
+        raise HTTPException(status_code=404, detail="Article not found")
+
+    post, category = post_row
+
+    return {
+        "id": post.id,
+        "slug": post.slug,
+        "title": {"ru": post.title_ru or "", "en": post.title_en or ""},
+        "excerpt": {"ru": post.excerpt_ru or "", "en": post.excerpt_en or ""},
+        "seo_title": {"ru": post.seo_title_ru or "", "en": post.seo_title_en or ""},
+        "seo_description": {"ru": post.seo_description_ru or "", "en": post.seo_description_en or ""},
+        "content": {"ru": post.content_ru or "", "en": post.content_en or ""},
+        "cover_image_url": post.cover_image_url or "",
+        "og_image_url": post.og_image_url or "",
+        "published_at": post.published_at.isoformat() if post.published_at else None,
+        "category": {
+            "id": category.id,
+            "name": {"ru": category.name_ru or "", "en": category.name_en or ""},
+            "slug": category.slug,
+        } if category else None,
+    }
+
+
+class BlogCommentCreateRequest(BaseModel):
+    name: str
+    email: Optional[str] = None
+    message: str
+
+
+@router.get("/blog/posts/{slug}/comments")
+def get_blog_comments_public(slug: str, db: Session = Depends(get_db)):
+    """Get approved comments for a blog post."""
+    post = (
+        db.query(BlogPost)
+        .filter(BlogPost.is_active == True, BlogPost.status == "published", BlogPost.slug == slug)
+        .first()
+    )
+    if not post:
+        raise HTTPException(status_code=404, detail="Article not found")
+
+    comments = (
+        db.query(BlogComment)
+        .filter(BlogComment.post_id == post.id, BlogComment.is_approved == True)
+        .order_by(BlogComment.created_at.asc())
+        .all()
+    )
+
+    return [
+        {
+            "id": comment.id,
+            "name": comment.name,
+            "message": comment.message,
+            "reply_message": comment.reply_message,
+            "replied_at": comment.replied_at.isoformat() if comment.replied_at else None,
+            "created_at": comment.created_at.isoformat() if comment.created_at else None,
+        }
+        for comment in comments
+    ]
+
+
+@router.post("/blog/posts/{slug}/comments")
+def create_blog_comment_public(
+    slug: str,
+    request: BlogCommentCreateRequest,
+    db: Session = Depends(get_db),
+):
+    """Create a new comment (pending approval)."""
+    post = (
+        db.query(BlogPost)
+        .filter(BlogPost.is_active == True, BlogPost.status == "published", BlogPost.slug == slug)
+        .first()
+    )
+    if not post:
+        raise HTTPException(status_code=404, detail="Article not found")
+
+    comment = BlogComment(
+        post_id=post.id,
+        name=request.name,
+        email=request.email,
+        message=request.message,
+        is_approved=False,
+        is_read=False,
+    )
+    db.add(comment)
+    db.commit()
+    db.refresh(comment)
+
+    return {
+        "success": True,
+        "message": "Comment submitted for review",
+        "id": comment.id,
+    }
+
+
+@router.get("/site-settings")
+def get_site_settings_public(db: Session = Depends(get_db)):
+    settings = db.query(Settings).first()
+    if not settings or not isinstance(settings.value, dict):
+        return {
+            "site_visible": True,
+            "noindex": False,
+            "sitemap_exclude": [],
+            "closed_message": None,
+        }
+    site = settings.value.get("site_settings", {}) if isinstance(settings.value, dict) else {}
+    return {
+        "site_visible": site.get("site_visible", True),
+        "noindex": site.get("noindex", False),
+        "sitemap_exclude": site.get("sitemap_exclude", []),
+        "closed_message": site.get("closed_message", None),
+        "site_title": site.get("site_title", None),
+        "site_description": site.get("site_description", None),
+        "favicon_light": site.get("favicon_light", None),
+        "favicon_dark": site.get("favicon_dark", None),
+        "favicon_svg": site.get("favicon_svg", None),
+        "apple_icon": site.get("apple_icon", None),
+        "og_default_image": site.get("og_default_image", None),
+    }

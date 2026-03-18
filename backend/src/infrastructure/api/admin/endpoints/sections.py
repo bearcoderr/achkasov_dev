@@ -2,6 +2,7 @@
 """API endpoints для админки (protected)"""
 from fastapi import APIRouter, Depends, HTTPException, Header, UploadFile, File
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy import or_
 from typing import List, Optional
 import jwt
@@ -17,11 +18,12 @@ from src.infrastructure.db.models import (
     Hero, About, Service, Project,
     Experience, Skills, Personal, Certificate,
     ContactMessage, Settings,
-    BlogCategory, BlogTag, BlogPost, BlogPostTag
+    BlogCategory, BlogTag, BlogPost, BlogPostTag, BlogComment
 )
 
 from src.infrastructure.api.admin.schemas.admin_schemas import (
     LoginRequest, LoginResponse,
+    AdminCredentialsUpdateRequest,
     HeroUpdateRequest, HeroResponse,
     AboutUpdateRequest, AboutResponse,
     ServiceCreateRequest, ServiceUpdateRequest, ServiceResponse,
@@ -30,10 +32,11 @@ from src.infrastructure.api.admin.schemas.admin_schemas import (
     SkillCategoryCreateRequest, SkillCategoryUpdateRequest, SkillCategoryResponse,
     CertificateCreateRequest, CertificateUpdateRequest, CertificateResponse,
     PersonalFactCreateRequest, PersonalFactUpdateRequest, PersonalFactResponse,
-    SettingsUpdateRequest,
+    SettingsUpdateRequest, SiteSettingsUpdateRequest,
     BlogCategoryCreateRequest, BlogCategoryUpdateRequest, BlogCategoryResponse,
     BlogTagCreateRequest, BlogTagUpdateRequest, BlogTagResponse,
-    BlogPostCreateRequest, BlogPostUpdateRequest, BlogPostResponse
+    BlogPostCreateRequest, BlogPostUpdateRequest, BlogPostResponse,
+    BlogCommentResponse, BlogCommentReplyRequest
 )
 from src.shared.config import settings
 
@@ -51,6 +54,10 @@ CERTIFICATES_UPLOAD_DIR = Path(settings.upload_dir) / "certificates"
 BLOG_UPLOAD_DIR = Path(settings.upload_dir) / "blog"
 BLOG_UPLOAD_DIR = Path(settings.upload_dir) / "blog"
 RESUME_UPLOAD_DIR = Path(settings.upload_dir) / "resume"
+SITE_UPLOAD_DIR = Path(settings.upload_dir) / "site"
+
+for _dir in [PROJECTS_UPLOAD_DIR, CERTIFICATES_UPLOAD_DIR, BLOG_UPLOAD_DIR, RESUME_UPLOAD_DIR, SITE_UPLOAD_DIR]:
+    _dir.mkdir(parents=True, exist_ok=True)
 
 def localized(ru_value: Optional[str], en_value: Optional[str]) -> dict:
     """Normalize localized fields to always be strings."""
@@ -60,6 +67,24 @@ def localized(ru_value: Optional[str], en_value: Optional[str]) -> dict:
 def localized_list(ru_value: Optional[list], en_value: Optional[list]) -> dict:
     """Normalize localized list fields to always be lists."""
     return {"ru": ru_value or [], "en": en_value or []}
+
+
+def get_site_settings(settings: Settings) -> dict:
+    value = settings.value if isinstance(settings.value, dict) else {}
+    site = value.get("site_settings") if isinstance(value, dict) else {}
+    return {
+        "site_visible": site.get("site_visible", True),
+        "noindex": site.get("noindex", False),
+        "sitemap_exclude": site.get("sitemap_exclude", []),
+        "closed_message": site.get("closed_message", None),
+        "site_title": site.get("site_title", None),
+        "site_description": site.get("site_description", None),
+        "favicon_light": site.get("favicon_light", None),
+        "favicon_dark": site.get("favicon_dark", None),
+        "favicon_svg": site.get("favicon_svg", None),
+        "apple_icon": site.get("apple_icon", None),
+        "og_default_image": site.get("og_default_image", None),
+    }
 
 def details_to_admin(value: Optional[object]) -> str:
     """Convert stored details (list or str) to admin textarea string."""
@@ -150,6 +175,40 @@ def login(req: LoginRequest, db: Session = Depends(get_db)):
     }
     token = jwt.encode(payload, get_secret_key(), algorithm=ALGORITHM)
 
+    return {"token": token}
+
+
+@router.put("/credentials", response_model=LoginResponse)
+def update_credentials(
+        request: AdminCredentialsUpdateRequest,
+        db: Session = Depends(get_db),
+        user: dict = Depends(verify_token)
+):
+    """Update admin username and/or password."""
+    current_user = db.query(LoginRequestModel).filter(LoginRequestModel.username == user.get("sub")).first()
+    if not current_user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if not pwd_context.verify(request.current_password, current_user.hashed_password):
+        raise HTTPException(status_code=401, detail="Current password is incorrect")
+
+    if request.new_username:
+        existing = db.query(LoginRequestModel).filter(LoginRequestModel.username == request.new_username).first()
+        if existing and existing.id != current_user.id:
+            raise HTTPException(status_code=400, detail="Username already exists")
+        current_user.username = request.new_username
+
+    if request.new_password:
+        current_user.hashed_password = pwd_context.hash(request.new_password)
+
+    db.commit()
+    db.refresh(current_user)
+
+    payload = {
+        "sub": current_user.username,
+        "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=24)
+    }
+    token = jwt.encode(payload, get_secret_key(), algorithm=ALGORITHM)
     return {"token": token}
 
 
@@ -1245,9 +1304,12 @@ def get_blog_posts_admin(
         "is_active": p.is_active,
         "published_at": p.published_at,
         "cover_image_url": p.cover_image_url or "",
+        "og_image_url": p.og_image_url or "",
         "title": localized(p.title_ru, p.title_en),
         "excerpt": localized(p.excerpt_ru, p.excerpt_en),
         "content": localized(p.content_ru, p.content_en),
+        "seo_title": localized(p.seo_title_ru, p.seo_title_en),
+        "seo_description": localized(p.seo_description_ru, p.seo_description_en),
         "tag_ids": _get_post_tag_ids(db, p.id)
     } for p in posts]
 
@@ -1270,9 +1332,12 @@ def get_blog_post_admin(
         "is_active": post.is_active,
         "published_at": post.published_at,
         "cover_image_url": post.cover_image_url or "",
+        "og_image_url": post.og_image_url or "",
         "title": localized(post.title_ru, post.title_en),
         "excerpt": localized(post.excerpt_ru, post.excerpt_en),
         "content": localized(post.content_ru, post.content_en),
+        "seo_title": localized(post.seo_title_ru, post.seo_title_en),
+        "seo_description": localized(post.seo_description_ru, post.seo_description_en),
         "tag_ids": _get_post_tag_ids(db, post.id)
     }
 
@@ -1305,12 +1370,17 @@ def create_blog_post(
         is_active=True if request.is_active is None else request.is_active,
         published_at=published_at_value,
         cover_image_url=request.cover_image_url,
+        og_image_url=request.og_image_url,
         title_ru=request.title.ru,
         excerpt_ru=request.excerpt.ru,
         content_ru=request.content.ru,
+        seo_title_ru=(request.seo_title.ru if request.seo_title else request.title.ru),
+        seo_description_ru=(request.seo_description.ru if request.seo_description else request.excerpt.ru),
         title_en=request.title.en,
         excerpt_en=request.excerpt.en,
-        content_en=request.content.en
+        content_en=request.content.en,
+        seo_title_en=(request.seo_title.en if request.seo_title else request.title.en),
+        seo_description_en=(request.seo_description.en if request.seo_description else request.excerpt.en)
     )
     db.add(post)
     db.commit()
@@ -1328,9 +1398,12 @@ def create_blog_post(
         "is_active": post.is_active,
         "published_at": post.published_at,
         "cover_image_url": post.cover_image_url or "",
+        "og_image_url": post.og_image_url or "",
         "title": localized(post.title_ru, post.title_en),
         "excerpt": localized(post.excerpt_ru, post.excerpt_en),
         "content": localized(post.content_ru, post.content_en),
+        "seo_title": localized(post.seo_title_ru, post.seo_title_en),
+        "seo_description": localized(post.seo_description_ru, post.seo_description_en),
         "tag_ids": _get_post_tag_ids(db, post.id)
     }
 
@@ -1372,12 +1445,17 @@ def update_blog_post(
         post.published_at = request.published_at
 
     post.cover_image_url = request.cover_image_url
+    post.og_image_url = request.og_image_url
     post.title_ru = request.title.ru
     post.excerpt_ru = request.excerpt.ru
     post.content_ru = request.content.ru
+    post.seo_title_ru = request.seo_title.ru if request.seo_title else post.title_ru
+    post.seo_description_ru = request.seo_description.ru if request.seo_description else post.excerpt_ru
     post.title_en = request.title.en
     post.excerpt_en = request.excerpt.en
     post.content_en = request.content.en
+    post.seo_title_en = request.seo_title.en if request.seo_title else post.title_en
+    post.seo_description_en = request.seo_description.en if request.seo_description else post.excerpt_en
 
     db.query(BlogPostTag).filter(BlogPostTag.post_id == post_id).delete()
     for tag_id in set(request.tag_ids or []):
@@ -1394,9 +1472,12 @@ def update_blog_post(
         "is_active": post.is_active,
         "published_at": post.published_at,
         "cover_image_url": post.cover_image_url or "",
+        "og_image_url": post.og_image_url or "",
         "title": localized(post.title_ru, post.title_en),
         "excerpt": localized(post.excerpt_ru, post.excerpt_en),
         "content": localized(post.content_ru, post.content_en),
+        "seo_title": localized(post.seo_title_ru, post.seo_title_en),
+        "seo_description": localized(post.seo_description_ru, post.seo_description_en),
         "tag_ids": _get_post_tag_ids(db, post.id)
     }
 
@@ -1414,6 +1495,104 @@ def delete_blog_post(
     post.is_active = False
     db.commit()
     return {"success": True, "message": "Post archived"}
+
+
+# ============= BLOG COMMENTS (ADMIN) =============
+
+@router.get("/blog/comments", response_model=List[BlogCommentResponse])
+def get_blog_comments(
+        post_id: Optional[int] = None,
+        db: Session = Depends(get_db),
+        user: dict = Depends(verify_token)
+):
+    query = db.query(BlogComment, BlogPost).join(BlogPost, BlogComment.post_id == BlogPost.id)
+    if post_id:
+        query = query.filter(BlogComment.post_id == post_id)
+
+    comments = query.order_by(BlogComment.created_at.desc()).all()
+
+    return [
+        BlogCommentResponse(
+            id=comment.id,
+            post_id=comment.post_id,
+            post_title=post.title_ru or post.title_en or "",
+            name=comment.name,
+            email=comment.email,
+            message=comment.message,
+            reply_message=comment.reply_message,
+            replied_at=comment.replied_at,
+            is_approved=comment.is_approved,
+            is_read=comment.is_read,
+            created_at=comment.created_at,
+        )
+        for comment, post in comments
+    ]
+
+
+@router.put("/blog/comments/{comment_id}/approve")
+def approve_blog_comment(
+        comment_id: int,
+        approved: bool = True,
+        db: Session = Depends(get_db),
+        user: dict = Depends(verify_token)
+):
+    comment = db.query(BlogComment).filter(BlogComment.id == comment_id).first()
+    if not comment:
+        raise HTTPException(status_code=404, detail="Comment not found")
+
+    comment.is_approved = approved
+    db.commit()
+    db.refresh(comment)
+    return {"success": True}
+
+
+@router.put("/blog/comments/{comment_id}/read")
+def mark_comment_read(
+        comment_id: int,
+        db: Session = Depends(get_db),
+        user: dict = Depends(verify_token)
+):
+    comment = db.query(BlogComment).filter(BlogComment.id == comment_id).first()
+    if not comment:
+        raise HTTPException(status_code=404, detail="Comment not found")
+
+    comment.is_read = True
+    db.commit()
+    db.refresh(comment)
+    return {"success": True}
+
+
+@router.put("/blog/comments/{comment_id}/reply")
+def reply_blog_comment(
+        comment_id: int,
+        request: BlogCommentReplyRequest,
+        db: Session = Depends(get_db),
+        user: dict = Depends(verify_token)
+):
+    comment = db.query(BlogComment).filter(BlogComment.id == comment_id).first()
+    if not comment:
+        raise HTTPException(status_code=404, detail="Comment not found")
+
+    comment.reply_message = request.message
+    comment.replied_at = datetime.datetime.utcnow()
+    db.commit()
+    db.refresh(comment)
+    return {"success": True}
+
+
+@router.delete("/blog/comments/{comment_id}")
+def delete_blog_comment(
+        comment_id: int,
+        db: Session = Depends(get_db),
+        user: dict = Depends(verify_token)
+):
+    comment = db.query(BlogComment).filter(BlogComment.id == comment_id).first()
+    if not comment:
+        raise HTTPException(status_code=404, detail="Comment not found")
+
+    db.delete(comment)
+    db.commit()
+    return {"success": True}
 
 
 # ============= SUBMISSIONS ENDPOINTS (без изменений) =============
@@ -1509,6 +1688,73 @@ def update_settings(
     db.refresh(settings)
 
     return {"success": True, "message": "Settings updated"}
+
+
+@router.get("/site-settings")
+def get_site_settings_admin(
+        db: Session = Depends(get_db),
+        user: dict = Depends(verify_token)
+):
+    settings = db.query(Settings).first()
+    if not settings:
+        settings = Settings()
+        db.add(settings)
+        db.commit()
+        db.refresh(settings)
+    return get_site_settings(settings)
+
+
+@router.put("/site-settings")
+def update_site_settings_admin(
+        request: SiteSettingsUpdateRequest,
+        db: Session = Depends(get_db),
+        user: dict = Depends(verify_token)
+):
+    settings = db.query(Settings).first()
+    if not settings:
+        settings = Settings()
+        db.add(settings)
+        db.commit()
+        db.refresh(settings)
+
+    value = settings.value if isinstance(settings.value, dict) else {}
+    value["site_settings"] = {
+        "site_visible": request.site_visible,
+        "noindex": request.noindex,
+        "sitemap_exclude": request.sitemap_exclude or [],
+        "closed_message": request.closed_message,
+        "site_title": request.site_title,
+        "site_description": request.site_description,
+        "favicon_light": request.favicon_light,
+        "favicon_dark": request.favicon_dark,
+        "favicon_svg": request.favicon_svg,
+        "apple_icon": request.apple_icon,
+        "og_default_image": request.og_default_image,
+    }
+    settings.value = value
+    flag_modified(settings, "value")
+    db.commit()
+    db.refresh(settings)
+
+    return {"success": True}
+
+
+@router.post("/site-settings/upload")
+def upload_site_asset(
+        type: str,
+        file: UploadFile = File(...),
+        user: dict = Depends(verify_token)
+):
+    """Upload site asset (favicon/og)."""
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="File is required")
+
+    safe_name = f"{uuid.uuid4().hex}_{file.filename}"
+    file_path = SITE_UPLOAD_DIR / safe_name
+    with file_path.open("wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    return {"url": f"/uploads/site/{safe_name}", "type": type}
 
 
 @router.get("/social-links", response_model=dict)

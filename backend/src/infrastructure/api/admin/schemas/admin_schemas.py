@@ -48,6 +48,12 @@ class LoginRequest(BaseModel):
 class LoginResponse(BaseModel):
     token: str
 
+
+class AdminCredentialsUpdateRequest(BaseModel):
+    current_password: str
+    new_password: Optional[str] = None
+    new_username: Optional[str] = None
+
 class LocalizedData(BaseModel):
     ru: str
     en: str
@@ -216,6 +222,20 @@ class SettingsUpdateRequest(BaseModel):
     contact_description: LocalizedData
     footer_rights: LocalizedData
 
+
+class SiteSettingsUpdateRequest(BaseModel):
+    site_visible: bool = True
+    noindex: bool = False
+    sitemap_exclude: List[str] = []
+    closed_message: Optional[str] = None
+    site_title: Optional[str] = None
+    site_description: Optional[str] = None
+    favicon_light: Optional[str] = None
+    favicon_dark: Optional[str] = None
+    favicon_svg: Optional[str] = None
+    apple_icon: Optional[str] = None
+    og_default_image: Optional[str] = None
+
 # Blog Schemas
 class BlogCategoryCreateRequest(BaseModel):
     name: LocalizedData
@@ -256,9 +276,12 @@ class BlogPostCreateRequest(BaseModel):
     is_active: Optional[bool] = True
     published_at: Optional[datetime] = None
     cover_image_url: Optional[str] = None
+    og_image_url: Optional[str] = None
     title: LocalizedData
     excerpt: LocalizedData
     content: LocalizedData
+    seo_title: Optional[LocalizedData] = None
+    seo_description: Optional[LocalizedData] = None
     tag_ids: List[int] = []
 
 class BlogPostUpdateRequest(BaseModel):
@@ -268,9 +291,12 @@ class BlogPostUpdateRequest(BaseModel):
     is_active: Optional[bool] = True
     published_at: Optional[datetime] = None
     cover_image_url: Optional[str] = None
+    og_image_url: Optional[str] = None
     title: LocalizedData
     excerpt: LocalizedData
     content: LocalizedData
+    seo_title: Optional[LocalizedData] = None
+    seo_description: Optional[LocalizedData] = None
     tag_ids: List[int] = []
 
 class BlogPostResponse(BaseModel):
@@ -281,7 +307,28 @@ class BlogPostResponse(BaseModel):
     is_active: Optional[bool] = None
     published_at: Optional[datetime] = None
     cover_image_url: Optional[str] = None
+    og_image_url: Optional[str] = None
     title: LocalizedData
     excerpt: LocalizedData
     content: LocalizedData
+    seo_title: Optional[LocalizedData] = None
+    seo_description: Optional[LocalizedData] = None
     tag_ids: List[int]
+
+
+class BlogCommentResponse(BaseModel):
+    id: int
+    post_id: int
+    post_title: Optional[str] = None
+    name: str
+    email: Optional[str] = None
+    message: str
+    reply_message: Optional[str] = None
+    replied_at: Optional[datetime] = None
+    is_approved: Optional[bool] = None
+    is_read: Optional[bool] = None
+    created_at: datetime
+
+
+class BlogCommentReplyRequest(BaseModel):
+    message: str

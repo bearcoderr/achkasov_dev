@@ -262,14 +262,19 @@ class BlogPost(Base):
     published_at = Column(DateTime(timezone=True), nullable=True)
 
     cover_image_url = Column(String(500), nullable=True)
+    og_image_url = Column(String(500), nullable=True)
 
     title_ru = Column(String(255), nullable=True)
     excerpt_ru = Column(Text, nullable=True)
     content_ru = Column(Text, nullable=True)
+    seo_title_ru = Column(String(255), nullable=True)
+    seo_description_ru = Column(Text, nullable=True)
 
     title_en = Column(String(255), nullable=True)
     excerpt_en = Column(Text, nullable=True)
     content_en = Column(Text, nullable=True)
+    seo_title_en = Column(String(255), nullable=True)
+    seo_description_en = Column(Text, nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
@@ -281,4 +286,20 @@ class BlogPostTag(Base):
 
     post_id = Column(Integer, ForeignKey("blog_posts.id"), primary_key=True)
     tag_id = Column(Integer, ForeignKey("blog_tags.id"), primary_key=True)
+
+
+class BlogComment(Base):
+    """Blog comments"""
+    __tablename__ = "blog_comments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    post_id = Column(Integer, ForeignKey("blog_posts.id"), nullable=False, index=True)
+    name = Column(String(255), nullable=False)
+    email = Column(String(255), nullable=True)
+    message = Column(Text, nullable=False)
+    reply_message = Column(Text, nullable=True)
+    replied_at = Column(DateTime(timezone=True), nullable=True)
+    is_approved = Column(Boolean, default=False, nullable=True)
+    is_read = Column(Boolean, default=False, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 

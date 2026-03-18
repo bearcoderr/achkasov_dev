@@ -1,10 +1,9 @@
-"use client"
+﻿"use client"
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import dynamic from "next/dynamic"
-import axios from "axios"
 
 const RichTextEditor = dynamic(() => import("@/components/RichTextEditor"), { ssr: false })
 
@@ -17,14 +16,12 @@ interface Category {
 type PostStatus = "draft" | "published"
 
 function slugify(value: string) {
-  const map: Record<string, string> = {
-    a: "a", b: "b", v: "v", g: "g", d: "d", e: "e", yo: "yo", zh: "zh", z: "z", i: "i", j: "y", k: "k", l: "l", m: "m", n: "n", o: "o", p: "p", r: "r", s: "s", t: "t", u: "u", f: "f", h: "h", c: "ts", ch: "ch", sh: "sh", sch: "sch", y: "y", ye: "e", yu: "yu", ya: "ya",
-  }
-
   const ruMap: Record<string, string> = {
-    "а": "a", "б": "b", "в": "v", "г": "g", "д": "d", "е": "e", "ё": "yo", "ж": "zh", "з": "z", "и": "i", "й": "y", "к": "k", "л": "l", "м": "m", "н": "n", "о": "o", "п": "p", "р": "r", "с": "s", "т": "t", "у": "u", "ф": "f", "х": "h", "ц": "ts", "ч": "ch", "ш": "sh", "щ": "sch", "ъ": "", "ы": "y", "ь": "", "э": "e", "ю": "yu", "я": "ya",
+    "а": "a", "б": "b", "в": "v", "г": "g", "д": "d", "е": "e", "ё": "yo", "ж": "zh", "з": "z", "и": "i", "й": "y",
+    "к": "k", "л": "l", "м": "m", "н": "n", "о": "o", "п": "p", "р": "r", "с": "s", "т": "t", "у": "u",
+    "ф": "f", "х": "h", "ц": "ts", "ч": "ch", "ш": "sh", "щ": "sch", "ъ": "", "ы": "y", "ь": "", "э": "e",
+    "ю": "yu", "я": "ya",
   }
-
   const lower = value.trim().toLowerCase()
   const translit = lower
     .split("")
@@ -44,6 +41,11 @@ export default function NewArticle() {
     titleEn: "",
     excerptRu: "",
     excerptEn: "",
+    seoTitleRu: "",
+    seoTitleEn: "",
+    seoDescriptionRu: "",
+    seoDescriptionEn: "",
+    ogImageUrl: "",
     slug: "",
     categoryId: "",
     contentRu: "",
@@ -55,29 +57,19 @@ export default function NewArticle() {
   const [isSaving, setIsSaving] = useState(false)
   const [slugTouched, setSlugTouched] = useState(false)
 
-  const api = axios.create({
-    baseURL: "",
-  })
-
-  api.interceptors.request.use((config) => {
-    const token = localStorage.getItem("adminToken")
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`
-    }
-    return config
-  })
-
   useEffect(() => {
     if (localStorage.getItem("adminLoggedIn") !== "true") {
       router.push("/admin")
-    } else {
-      api
-        .get("/admin/blog/categories")
-        .then((res) => setCategories(res.data || []))
-        .catch((err) => {
-          console.error("Failed to load categories", err)
-        })
+      return
     }
+    const token = localStorage.getItem("adminToken")
+    if (!token) return
+    fetch("/admin-api/blog/categories", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => setCategories(data || []))
+      .catch(() => setCategories([]))
   }, [router])
 
   const updateSlugIfNeeded = (nextTitleRu: string, nextTitleEn: string) => {
@@ -88,28 +80,41 @@ export default function NewArticle() {
 
   const handleSave = async () => {
     if (!formData.titleRu || !formData.titleEn || !formData.slug) {
-      alert("Заполните все обязательные поля")
+      alert("Fill required fields")
       return
     }
 
+    const token = localStorage.getItem("adminToken")
+    if (!token) return
+
     setIsSaving(true)
     try {
-      await api.post("/admin-api/blog/posts", {
-        slug: formData.slug,
-        category_id: formData.categoryId ? Number(formData.categoryId) : null,
-        status: formData.status,
-        is_active: true,
-        published_at: formData.status === "published" ? new Date().toISOString() : null,
-        cover_image_url: "",
-        title: { ru: formData.titleRu, en: formData.titleEn },
-        excerpt: { ru: formData.excerptRu, en: formData.excerptEn },
-        content: { ru: formData.contentRu, en: formData.contentEn },
-        tag_ids: [],
+      const res = await fetch("/admin-api/blog/posts", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          slug: formData.slug,
+          category_id: formData.categoryId ? Number(formData.categoryId) : null,
+          status: formData.status,
+          is_active: true,
+          published_at: formData.status === "published" ? new Date().toISOString() : null,
+          cover_image_url: "",
+          og_image_url: formData.ogImageUrl,
+          title: { ru: formData.titleRu, en: formData.titleEn },
+          excerpt: { ru: formData.excerptRu, en: formData.excerptEn },
+          content: { ru: formData.contentRu, en: formData.contentEn },
+          seo_title: { ru: formData.seoTitleRu, en: formData.seoTitleEn },
+          seo_description: { ru: formData.seoDescriptionRu, en: formData.seoDescriptionEn },
+          tag_ids: [],
+        }),
       })
+      if (!res.ok) throw new Error("Failed")
       router.push("/admin/blog")
-    } catch (err) {
-      console.error("Failed to create post", err)
-      alert("Не удалось сохранить статью")
+    } catch {
+      alert("Failed to save post")
     } finally {
       setIsSaving(false)
     }
@@ -122,16 +127,16 @@ export default function NewArticle() {
           <div className="flex justify-between h-16 items-center">
             <div className="flex items-center space-x-6">
               <Link href="/admin/blog" className="text-[#6B9BD1] hover:text-[#5a8bc4] text-sm">
-                ← Назад
+                ← Back
               </Link>
-              <h1 className="text-lg font-medium text-white">Новая статья</h1>
+              <h1 className="text-lg font-medium text-white">New Article</h1>
             </div>
             <button
               onClick={handleSave}
               disabled={isSaving}
               className="px-4 py-2 bg-[#6B9BD1] text-white rounded-lg hover:bg-[#5a8bc4] transition-colors disabled:opacity-60"
             >
-              {isSaving ? "Сохранение..." : "Сохранить"}
+              {isSaving ? "Saving..." : "Save"}
             </button>
           </div>
         </div>
@@ -146,7 +151,7 @@ export default function NewArticle() {
                 activeLanguage === "ru" ? "bg-[#6B9BD1] text-white" : "bg-[#0f0f0f] text-gray-400"
               }`}
             >
-              Русский
+              RU
             </button>
             <button
               onClick={() => setActiveLanguage("en")}
@@ -154,14 +159,14 @@ export default function NewArticle() {
                 activeLanguage === "en" ? "bg-[#6B9BD1] text-white" : "bg-[#0f0f0f] text-gray-400"
               }`}
             >
-              English
+              EN
             </button>
           </div>
 
           {activeLanguage === "ru" ? (
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Заголовок (RU)</label>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Title (RU)</label>
                 <input
                   type="text"
                   value={formData.titleRu}
@@ -174,7 +179,7 @@ export default function NewArticle() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Краткое описание (RU)</label>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Excerpt (RU)</label>
                 <textarea
                   value={formData.excerptRu}
                   onChange={(e) => setFormData({ ...formData, excerptRu: e.target.value })}
@@ -183,17 +188,39 @@ export default function NewArticle() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Содержимое (RU)</label>
+                <label className="block text-sm font-medium text-gray-300 mb-2">SEO Title (RU)</label>
+                <input
+                  type="text"
+                  value={formData.seoTitleRu}
+                  onChange={(e) => setFormData({ ...formData, seoTitleRu: e.target.value })}
+                  className="w-full px-4 py-3 bg-[#0f0f0f] border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-[#6B9BD1]"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">SEO Description (RU)</label>
+                <textarea
+                  value={formData.seoDescriptionRu}
+                  onChange={(e) => setFormData({ ...formData, seoDescriptionRu: e.target.value })}
+                  className="w-full px-4 py-3 bg-[#0f0f0f] border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-[#6B9BD1]"
+                  rows={3}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Content (RU)</label>
                 <RichTextEditor
                   value={formData.contentRu}
                   onChange={(value: string) => setFormData({ ...formData, contentRu: value })}
                   onImageUpload={async (file) => {
+                    const token = localStorage.getItem("adminToken")
                     const form = new FormData()
                     form.append("file", file)
-                    const res = await api.post("/admin-api/blog/upload-image", form, {
-                      headers: { "Content-Type": "multipart/form-data" },
+                    const res = await fetch("/admin-api/blog/upload-image", {
+                      method: "POST",
+                      headers: { Authorization: `Bearer ${token}` },
+                      body: form,
                     })
-                    return res.data.url
+                    const data = await res.json()
+                    return data.url
                   }}
                 />
               </div>
@@ -201,7 +228,7 @@ export default function NewArticle() {
           ) : (
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Заголовок (EN)</label>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Title (EN)</label>
                 <input
                   type="text"
                   value={formData.titleEn}
@@ -214,7 +241,7 @@ export default function NewArticle() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Краткое описание (EN)</label>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Excerpt (EN)</label>
                 <textarea
                   value={formData.excerptEn}
                   onChange={(e) => setFormData({ ...formData, excerptEn: e.target.value })}
@@ -223,17 +250,39 @@ export default function NewArticle() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Содержимое (EN)</label>
+                <label className="block text-sm font-medium text-gray-300 mb-2">SEO Title (EN)</label>
+                <input
+                  type="text"
+                  value={formData.seoTitleEn}
+                  onChange={(e) => setFormData({ ...formData, seoTitleEn: e.target.value })}
+                  className="w-full px-4 py-3 bg-[#0f0f0f] border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-[#6B9BD1]"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">SEO Description (EN)</label>
+                <textarea
+                  value={formData.seoDescriptionEn}
+                  onChange={(e) => setFormData({ ...formData, seoDescriptionEn: e.target.value })}
+                  className="w-full px-4 py-3 bg-[#0f0f0f] border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-[#6B9BD1]"
+                  rows={3}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Content (EN)</label>
                 <RichTextEditor
                   value={formData.contentEn}
                   onChange={(value: string) => setFormData({ ...formData, contentEn: value })}
                   onImageUpload={async (file) => {
+                    const token = localStorage.getItem("adminToken")
                     const form = new FormData()
                     form.append("file", file)
-                    const res = await api.post("/admin-api/blog/upload-image", form, {
-                      headers: { "Content-Type": "multipart/form-data" },
+                    const res = await fetch("/admin-api/blog/upload-image", {
+                      method: "POST",
+                      headers: { Authorization: `Bearer ${token}` },
+                      body: form,
                     })
-                    return res.data.url
+                    const data = await res.json()
+                    return data.url
                   }}
                 />
               </div>
@@ -254,13 +303,13 @@ export default function NewArticle() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Категория</label>
+              <label className="block text-sm font-medium text-gray-300 mb-2">Category</label>
               <select
                 value={formData.categoryId}
                 onChange={(e) => setFormData({ ...formData, categoryId: e.target.value })}
                 className="w-full px-4 py-3 bg-[#0f0f0f] border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-[#6B9BD1]"
               >
-                <option value="">Выберите категорию</option>
+                <option value="">Select category</option>
                 {categories.map((cat) => (
                   <option key={cat.id} value={cat.id}>
                     {cat.name.ru}
@@ -268,23 +317,30 @@ export default function NewArticle() {
                 ))}
               </select>
             </div>
-          </div>
-
-          <div className="flex items-center">
-            <label className="block text-sm text-gray-300 mr-3">Статус</label>
-            <select
-              value={formData.status}
-              onChange={(e) => setFormData({ ...formData, status: e.target.value as PostStatus })}
-              className="px-4 py-2 bg-[#0f0f0f] border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-[#6B9BD1]"
-            >
-              <option value="draft">Черновик</option>
-              <option value="published">Опубликовано</option>
-            </select>
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">Social Image URL</label>
+              <input
+                type="text"
+                value={formData.ogImageUrl}
+                onChange={(e) => setFormData({ ...formData, ogImageUrl: e.target.value })}
+                className="w-full px-4 py-3 bg-[#0f0f0f] border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-[#6B9BD1]"
+                placeholder="https://..."
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">Status</label>
+              <select
+                value={formData.status}
+                onChange={(e) => setFormData({ ...formData, status: e.target.value as PostStatus })}
+                className="w-full px-4 py-3 bg-[#0f0f0f] border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-[#6B9BD1]"
+              >
+                <option value="draft">Draft</option>
+                <option value="published">Published</option>
+              </select>
+            </div>
           </div>
         </div>
       </div>
     </div>
   )
 }
-
-
