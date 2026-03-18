@@ -1,10 +1,9 @@
-"use client"
+﻿"use client"
 
 import { useEffect, useState } from "react"
 import { useRouter, useParams } from "next/navigation"
 import Link from "next/link"
 import dynamic from "next/dynamic"
-import axios from "axios"
 
 const RichTextEditor = dynamic(() => import("../../../../../components/RichTextEditor"), { ssr: false })
 
@@ -21,6 +20,9 @@ interface ArticleForm {
   title: { ru: string; en: string }
   excerpt: { ru: string; en: string }
   content: { ru: string; en: string }
+  seo_title: { ru: string; en: string }
+  seo_description: { ru: string; en: string }
+  og_image_url: string
   slug: string
   category_id: number | null
   status: PostStatus
@@ -28,7 +30,10 @@ interface ArticleForm {
 
 function slugify(value: string) {
   const ruMap: Record<string, string> = {
-    "а": "a", "б": "b", "в": "v", "г": "g", "д": "d", "е": "e", "ё": "yo", "ж": "zh", "з": "z", "и": "i", "й": "y", "к": "k", "л": "l", "м": "m", "н": "n", "о": "o", "п": "p", "р": "r", "с": "s", "т": "t", "у": "u", "ф": "f", "х": "h", "ц": "ts", "ч": "ch", "ш": "sh", "щ": "sch", "ъ": "", "ы": "y", "ь": "", "э": "e", "ю": "yu", "я": "ya",
+    "а": "a", "б": "b", "в": "v", "г": "g", "д": "d", "е": "e", "ё": "yo", "ж": "zh", "з": "z", "и": "i", "й": "y",
+    "к": "k", "л": "l", "м": "m", "н": "n", "о": "o", "п": "p", "р": "r", "с": "s", "т": "t", "у": "u",
+    "ф": "f", "х": "h", "ц": "ts", "ч": "ch", "ш": "sh", "щ": "sch", "ъ": "", "ы": "y", "ь": "", "э": "e",
+    "ю": "yu", "я": "ya",
   }
   const lower = value.trim().toLowerCase()
   const translit = lower
@@ -52,23 +57,14 @@ export default function EditArticle() {
   const [slugTouched, setSlugTouched] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const api = axios.create({
-    baseURL: "",
-  })
-
-  api.interceptors.request.use((config) => {
-    const token = localStorage.getItem("adminToken")
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`
-    }
-    return config
-  })
-
   useEffect(() => {
     if (localStorage.getItem("adminLoggedIn") !== "true") {
       router.push("/admin")
       return
     }
+
+    const token = localStorage.getItem("adminToken")
+    if (!token) return
 
     const postIdRaw = Array.isArray(params.id) ? params.id[0] : params.id
     const postId = Number(postIdRaw)
@@ -77,24 +73,27 @@ export default function EditArticle() {
       return
     }
 
-    Promise.all([api.get("/admin-api/blog/categories"), api.get(`/admin-api/blog/posts/${postId}`)])
+    Promise.all([
+      fetch("/admin-api/blog/categories", { headers: { Authorization: `Bearer ${token}` } }).then((res) => res.json()),
+      fetch(`/admin-api/blog/posts/${postId}`, { headers: { Authorization: `Bearer ${token}` } }).then((res) => res.json()),
+    ])
       .then(([categoriesRes, postRes]) => {
-        setCategories(categoriesRes.data || [])
-        const data = postRes.data
+        setCategories(categoriesRes || [])
+        const data = postRes
         setArticle({
           id: data.id,
           title: data.title,
           excerpt: data.excerpt || { ru: "", en: "" },
           content: data.content || { ru: "", en: "" },
+          seo_title: data.seo_title || { ru: "", en: "" },
+          seo_description: data.seo_description || { ru: "", en: "" },
+          og_image_url: data.og_image_url || "",
           slug: data.slug,
           category_id: data.category_id ?? null,
           status: data.status,
         })
       })
-      .catch((err) => {
-        console.error("Failed to load post", err)
-        setError("Не удалось загрузить статью")
-      })
+      .catch(() => setError("Failed to load post"))
       .finally(() => setIsLoading(false))
   }, [router, params.id])
 
@@ -106,36 +105,47 @@ export default function EditArticle() {
 
   const handleSave = async () => {
     if (!article) return
+    const token = localStorage.getItem("adminToken")
+    if (!token) return
 
     try {
-      await api.put(`/admin-api/blog/posts/${article.id}`, {
-        slug: article.slug,
-        category_id: article.category_id,
-        status: article.status,
-        is_active: true,
-        published_at: article.status === "published" ? new Date().toISOString() : null,
-        cover_image_url: "",
-        title: article.title,
-        excerpt: article.excerpt,
-        content: article.content,
-        tag_ids: [],
+      await fetch(`/admin-api/blog/posts/${article.id}`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          slug: article.slug,
+          category_id: article.category_id,
+          status: article.status,
+          is_active: true,
+          published_at: article.status === "published" ? new Date().toISOString() : null,
+          cover_image_url: "",
+          og_image_url: article.og_image_url,
+          title: article.title,
+          excerpt: article.excerpt,
+          content: article.content,
+          seo_title: article.seo_title,
+          seo_description: article.seo_description,
+          tag_ids: [],
+        }),
       })
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
-    } catch (err) {
-      console.error("Failed to update post", err)
-      alert("Не удалось сохранить изменения")
+    } catch {
+      alert("Failed to save changes")
     }
   }
 
   if (isLoading) {
-    return <div className="min-h-screen flex items-center justify-center bg-[#0f0f0f]">Загрузка...</div>
+    return <div className="min-h-screen flex items-center justify-center bg-[#0f0f0f]">Loading...</div>
   }
 
   if (!article) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#0f0f0f] text-white">
-        {error || "Статья не найдена"}
+        {error || "Post not found"}
       </div>
     )
   }
@@ -147,17 +157,17 @@ export default function EditArticle() {
           <div className="flex justify-between h-16 items-center">
             <div className="flex items-center space-x-6">
               <Link href="/admin/blog" className="text-[#6B9BD1] hover:text-[#5a8bc4] text-sm">
-                ← Назад
+                ← Back
               </Link>
-              <h1 className="text-lg font-medium text-white">Редактирование статьи</h1>
+              <h1 className="text-lg font-medium text-white">Edit Article</h1>
             </div>
             <div className="flex items-center space-x-4">
-              {saved && <span className="text-green-600 text-sm">Сохранено</span>}
+              {saved && <span className="text-green-600 text-sm">Saved</span>}
               <button
                 onClick={handleSave}
                 className="px-5 py-2 bg-[#6B9BD1] text-white rounded-lg hover:bg-[#5a8bc4] transition-colors text-sm"
               >
-                Сохранить
+                Save
               </button>
             </div>
           </div>
@@ -169,7 +179,7 @@ export default function EditArticle() {
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Заголовок (RU)</label>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Title (RU)</label>
                 <input
                   type="text"
                   value={article.title.ru}
@@ -182,7 +192,7 @@ export default function EditArticle() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Заголовок (EN)</label>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Title (EN)</label>
                 <input
                   type="text"
                   value={article.title.en}
@@ -198,26 +208,22 @@ export default function EditArticle() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Краткое описание (RU)</label>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Excerpt (RU)</label>
                 <textarea
                   value={article.excerpt.ru}
                   onChange={(e) =>
-                    setArticle((prev) =>
-                      prev ? { ...prev, excerpt: { ...prev.excerpt, ru: e.target.value } } : prev
-                    )
+                    setArticle((prev) => prev ? { ...prev, excerpt: { ...prev.excerpt, ru: e.target.value } } : prev)
                   }
                   className="w-full px-4 py-2 bg-[#0f0f0f] border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-[#6B9BD1]"
                   rows={3}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Краткое описание (EN)</label>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Excerpt (EN)</label>
                 <textarea
                   value={article.excerpt.en}
                   onChange={(e) =>
-                    setArticle((prev) =>
-                      prev ? { ...prev, excerpt: { ...prev.excerpt, en: e.target.value } } : prev
-                    )
+                    setArticle((prev) => prev ? { ...prev, excerpt: { ...prev.excerpt, en: e.target.value } } : prev)
                   }
                   className="w-full px-4 py-2 bg-[#0f0f0f] border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-[#6B9BD1]"
                   rows={3}
@@ -225,7 +231,93 @@ export default function EditArticle() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">SEO Title (RU)</label>
+                <input
+                  type="text"
+                  value={article.seo_title.ru}
+                  onChange={(e) =>
+                    setArticle((prev) => prev ? { ...prev, seo_title: { ...prev.seo_title, ru: e.target.value } } : prev)
+                  }
+                  className="w-full px-4 py-2 bg-[#0f0f0f] border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-[#6B9BD1]"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">SEO Title (EN)</label>
+                <input
+                  type="text"
+                  value={article.seo_title.en}
+                  onChange={(e) =>
+                    setArticle((prev) => prev ? { ...prev, seo_title: { ...prev.seo_title, en: e.target.value } } : prev)
+                  }
+                  className="w-full px-4 py-2 bg-[#0f0f0f] border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-[#6B9BD1]"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">SEO Description (RU)</label>
+                <textarea
+                  value={article.seo_description.ru}
+                  onChange={(e) =>
+                    setArticle((prev) => prev ? { ...prev, seo_description: { ...prev.seo_description, ru: e.target.value } } : prev)
+                  }
+                  className="w-full px-4 py-2 bg-[#0f0f0f] border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-[#6B9BD1]"
+                  rows={3}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">SEO Description (EN)</label>
+                <textarea
+                  value={article.seo_description.en}
+                  onChange={(e) =>
+                    setArticle((prev) => prev ? { ...prev, seo_description: { ...prev.seo_description, en: e.target.value } } : prev)
+                  }
+                  className="w-full px-4 py-2 bg-[#0f0f0f] border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-[#6B9BD1]"
+                  rows={3}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">Content (RU)</label>
+              <RichTextEditor
+                value={article.content.ru}
+                onChange={(value) => setArticle((prev) => prev ? { ...prev, content: { ...prev.content, ru: value } } : prev)}
+                onImageUpload={async (file) => {
+                  const token = localStorage.getItem("adminToken")
+                  const form = new FormData()
+                  form.append("file", file)
+                  const res = await fetch("/admin-api/blog/upload-image", {
+                    method: "POST",
+                    headers: { Authorization: `Bearer ${token}` },
+                    body: form,
+                  })
+                  const data = await res.json()
+                  return data.url
+                }}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">Content (EN)</label>
+              <RichTextEditor
+                value={article.content.en}
+                onChange={(value) => setArticle((prev) => prev ? { ...prev, content: { ...prev.content, en: value } } : prev)}
+                onImageUpload={async (file) => {
+                  const token = localStorage.getItem("adminToken")
+                  const form = new FormData()
+                  form.append("file", file)
+                  const res = await fetch("/admin-api/blog/upload-image", {
+                    method: "POST",
+                    headers: { Authorization: `Bearer ${token}` },
+                    body: form,
+                  })
+                  const data = await res.json()
+                  return data.url
+                }}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-gray-800">
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">Slug</label>
                 <input
@@ -239,22 +331,13 @@ export default function EditArticle() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Категория</label>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Category</label>
                 <select
                   value={article.category_id ?? ""}
-                  onChange={(e) =>
-                    setArticle((prev) =>
-                      prev
-                        ? {
-                            ...prev,
-                            category_id: e.target.value ? Number(e.target.value) : null,
-                          }
-                        : prev
-                    )
-                  }
+                  onChange={(e) => setArticle((prev) => (prev ? { ...prev, category_id: Number(e.target.value) } : prev))}
                   className="w-full px-4 py-2 bg-[#0f0f0f] border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-[#6B9BD1]"
                 >
-                  <option value="">Выберите категорию</option>
+                  <option value="">Select category</option>
                   {categories.map((cat) => (
                     <option key={cat.id} value={cat.id}>
                       {cat.name.ru}
@@ -263,59 +346,26 @@ export default function EditArticle() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Статус</label>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Social Image URL</label>
+                <input
+                  type="text"
+                  value={article.og_image_url}
+                  onChange={(e) => setArticle((prev) => (prev ? { ...prev, og_image_url: e.target.value } : prev))}
+                  className="w-full px-4 py-2 bg-[#0f0f0f] border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-[#6B9BD1]"
+                  placeholder="https://..."
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Status</label>
                 <select
                   value={article.status}
-                  onChange={(e) =>
-                    setArticle((prev) => (prev ? { ...prev, status: e.target.value as PostStatus } : prev))
-                  }
+                  onChange={(e) => setArticle((prev) => (prev ? { ...prev, status: e.target.value as PostStatus } : prev))}
                   className="w-full px-4 py-2 bg-[#0f0f0f] border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-[#6B9BD1]"
                 >
-                  <option value="draft">Черновик</option>
-                  <option value="published">Опубликовано</option>
-                  <option value="archived">Архив</option>
+                  <option value="draft">Draft</option>
+                  <option value="published">Published</option>
+                  <option value="archived">Archived</option>
                 </select>
-              </div>
-            </div>
-
-            <div className="space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Контент (RU)</label>
-                <RichTextEditor
-                  value={article.content.ru}
-                  onChange={(value) =>
-                    setArticle((prev) =>
-                      prev ? { ...prev, content: { ...prev.content, ru: value } } : prev
-                    )
-                  }
-                  onImageUpload={async (file) => {
-                    const form = new FormData()
-                    form.append("file", file)
-                    const res = await api.post("/admin-api/blog/upload-image", form, {
-                      headers: { "Content-Type": "multipart/form-data" },
-                    })
-                    return res.data.url
-                  }}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Контент (EN)</label>
-                <RichTextEditor
-                  value={article.content.en}
-                  onChange={(value) =>
-                    setArticle((prev) =>
-                      prev ? { ...prev, content: { ...prev.content, en: value } } : prev
-                    )
-                  }
-                  onImageUpload={async (file) => {
-                    const form = new FormData()
-                    form.append("file", file)
-                    const res = await api.post("/admin-api/blog/upload-image", form, {
-                      headers: { "Content-Type": "multipart/form-data" },
-                    })
-                    return res.data.url
-                  }}
-                />
               </div>
             </div>
           </div>
@@ -324,5 +374,3 @@ export default function EditArticle() {
     </div>
   )
 }
-
-

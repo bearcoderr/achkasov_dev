@@ -1,633 +1,383 @@
 "use client"
 
-import type React from "react"
-
-import { useState, useEffect } from "react"
-import { Card } from "@/components/ui/card"
+import { useEffect, useMemo, useState } from "react"
+import Link from "next/link"
+import { useParams } from "next/navigation"
+import { ChevronLeft, Calendar, User } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import Link from "next/link"
-import { ChevronLeft, Calendar, User } from "lucide-react"
-import { useParams } from "next/navigation"
 
-const articlesData = {
-  "article-1": {
-    ru: {
-      title: "Django: лучшие практики разработки",
-      date: "15 января 2024",
-      category: "Django",
-      content: `
-Django — это мощный Python-фреймворк для веб-разработки, который позволяет быстро создавать надежные приложения. В этой статье мы рассмотрим проверенные практики, которые помогут вам писать чистый, масштабируемый код.
-
-## Структура проекта
-
-Правильная организация кода — основа успешного проекта. Рекомендую использовать следующую структуру:
-
-- Разделяйте приложения по функциональности
-- Используйте отдельные файлы для settings (dev, prod)
-- Храните секретные данные в переменных окружения
-- Организуйте модели, views и serializers в отдельных модулях
-
-## Работа с моделями
-
-Django ORM предоставляет мощные инструменты для работы с базой данных:
-
-- Используйте select_related и prefetch_related для оптимизации запросов
-- Добавляйте индексы для часто используемых полей
-- Применяйте migrations для версионирования схемы БД
-- Используйте custom managers для повторяющейся логики
-
-## API разработка
-
-Для создания RESTful API используйте Django REST Framework:
-
-- Разделяйте сериализаторы для чтения и записи
-- Применяйте ViewSets для стандартных CRUD операций
-- Используйте permissions для контроля доступа
-- Добавляйте пагинацию для списков объектов
-
-## Безопасность
-
-Не забывайте о безопасности:
-
-- Включайте CSRF защиту
-- Используйте HTTPS в production
-- Валидируйте все входящие данные
-- Ограничивайте rate limits для API
-
-## Тестирование
-
-Покрывайте код тестами:
-
-- Используйте pytest для удобного тестирования
-- Применяйте fixtures для подготовки данных
-- Тестируйте edge cases
-- Автоматизируйте запуск тестов в CI/CD
-
-## Производительность
-
-Оптимизируйте приложение:
-
-- Используйте Django Debug Toolbar для анализа
-- Кэшируйте часто используемые данные
-- Применяйте Celery для фоновых задач
-- Оптимизируйте медиафайлы
-
-Следуя этим практикам, вы создадите качественное и поддерживаемое приложение на Django.
-      `,
-    },
-    en: {
-      title: "Django: Development Best Practices",
-      date: "January 15, 2024",
-      category: "Django",
-      content: `
-Django is a powerful Python web framework that enables rapid development of reliable applications. In this article, we'll explore proven practices that will help you write clean, scalable code.
-
-## Project Structure
-
-Proper code organization is the foundation of a successful project. I recommend the following structure:
-
-- Separate applications by functionality
-- Use separate files for settings (dev, prod)
-- Store secrets in environment variables
-- Organize models, views, and serializers in separate modules
-
-## Working with Models
-
-Django ORM provides powerful tools for database operations:
-
-- Use select_related and prefetch_related for query optimization
-- Add indexes for frequently used fields
-- Apply migrations for DB schema versioning
-- Use custom managers for recurring logic
-
-## API Development
-
-Use Django REST Framework for building RESTful APIs:
-
-- Separate serializers for read and write operations
-- Apply ViewSets for standard CRUD operations
-- Use permissions for access control
-- Add pagination for object lists
-
-## Security
-
-Don't forget about security:
-
-- Enable CSRF protection
-- Use HTTPS in production
-- Validate all incoming data
-- Limit rate limits for APIs
-
-## Testing
-
-Cover your code with tests:
-
-- Use pytest for convenient testing
-- Apply fixtures for data preparation
-- Test edge cases
-- Automate test execution in CI/CD
-
-## Performance
-
-Optimize your application:
-
-- Use Django Debug Toolbar for analysis
-- Cache frequently used data
-- Apply Celery for background tasks
-- Optimize media files
-
-Following these practices will help you build a quality, maintainable Django application.
-      `,
-    },
-  },
-  "article-2": {
-    ru: {
-      title: "JWT аутентификация в Django REST Framework",
-      date: "10 января 2024",
-      category: "API",
-      content: `
-JSON Web Tokens (JWT) — это современный стандарт для безопасной передачи информации между сторонами. В этом руководстве мы реализуем JWT аутентификацию в Django.
-
-## Что такое JWT?
-
-JWT — это компактный токен, состоящий из трех частей:
-
-- Header: информация о типе токена и алгоритме шифрования
-- Payload: данные пользователя (claims)
-- Signature: подпись для проверки целостности
-
-## Установка
-
-Для работы с JWT установим необходимые пакеты:
-
-\`\`\`bash
-pip install djangorestframework-simplejwt
-\`\`\`
-
-## Настройка Django
-
-Добавьте конфигурацию в settings.py:
-
-- Добавьте authentication classes
-- Настройте время жизни токенов
-- Укажите алгоритм шифрования
-- Настройте refresh tokens
-
-## Создание endpoints
-
-Реализуем endpoints для:
-
-- Получения токенов (login)
-- Обновления токенов (refresh)
-- Валидации токенов
-- Logout (добавление в blacklist)
-
-## Защита views
-
-Используйте декораторы для защиты endpoints:
-
-- @permission_classes для проверки прав
-- IsAuthenticated для авторизованных пользователей
-- Custom permissions для сложной логики
-
-## Работа с токенами на клиенте
-
-На фронтенде:
-
-- Храните access token в памяти
-- Refresh token в httpOnly cookies
-- Автоматически обновляйте токены
-- Обрабатывайте истечение срока
-
-## Безопасность
-
-Важные аспекты безопасности:
-
-- Используйте HTTPS
-- Короткое время жизни access токенов
-- Храните secret key в переменных окружения
-- Реализуйте token rotation
-
-JWT — отличный выбор для современных API. Следуя этим рекомендациям, вы создадите безопасную систему аутентификации.
-      `,
-    },
-    en: {
-      title: "JWT Authentication in Django REST Framework",
-      date: "January 10, 2024",
-      category: "API",
-      content: `
-JSON Web Tokens (JWT) are a modern standard for securely transmitting information between parties. In this guide, we'll implement JWT authentication in Django.
-
-## What is JWT?
-
-JWT is a compact token consisting of three parts:
-
-- Header: information about token type and encryption algorithm
-- Payload: user data (claims)
-- Signature: signature to verify integrity
-
-## Installation
-
-To work with JWT, install the necessary packages:
-
-\`\`\`bash
-pip install djangorestframework-simplejwt
-\`\`\`
-
-## Django Configuration
-
-Add configuration to settings.py:
-
-- Add authentication classes
-- Configure token lifetime
-- Specify encryption algorithm
-- Set up refresh tokens
-
-## Creating Endpoints
-
-Implement endpoints for:
-
-- Obtaining tokens (login)
-- Refreshing tokens (refresh)
-- Validating tokens
-- Logout (adding to blacklist)
-
-## Protecting Views
-
-Use decorators to protect endpoints:
-
-- @permission_classes for permission checks
-- IsAuthenticated for authorized users
-- Custom permissions for complex logic
-
-## Working with Tokens on Client
-
-On the frontend:
-
-- Store access token in memory
-- Refresh token in httpOnly cookies
-- Automatically refresh tokens
-- Handle token expiration
-
-## Security
-
-Important security aspects:
-
-- Use HTTPS
-- Short access token lifetime
-- Store secret key in environment variables
-- Implement token rotation
-
-JWT is an excellent choice for modern APIs. Following these recommendations, you'll create a secure authentication system.
-      `,
-    },
-  },
-  "article-3": {
-    ru: {
-      title: "Docker для Django проектов",
-      date: "5 января 2024",
-      category: "DevOps",
-      content: `
-Docker revolutionizes the way we develop and deploy applications. In this article, we'll learn how to properly containerize Django projects.
-
-## Почему Docker?
-
-Docker solves the "works on my machine" problem:
-
-- Same environment for all developers
-- Simple server deployment
-- Dependency isolation
-- Application scalability
-
-## Создание Dockerfile
-
-Basic Dockerfile for Django:
-
-- Use official Python image
-- Install dependencies as separate layer
-- Copy application code
-- Configure ENTRYPOINT
-
-## Docker Compose
-
-For local development, use docker-compose:
-
-- Service for Django application
-- Service for PostgreSQL
-- Service for Redis (cache/queues)
-- Volumes for persistent data
-
-## Multi-stage Builds
-
-Optimize image size:
-
-- Use builder stage for dependencies
-- Production stage with only necessary files
-- Remove dev dependencies
-- Optimize layers
-
-## Production Settings
-
-For production:
-
-- Use gunicorn/uwsgi
-- Configure nginx as reverse proxy
-- Add healthchecks
-- Log to stdout/stderr
-
-## CI/CD Integration
-
-Automate the process:
-
-- Build images in CI
-- Test in containers
-- Publish to registry
-- Deploy using docker
-
-## Secrets and Variables
-
-Secure configuration management:
-
-- Use .env files
-- Docker secrets for sensitive data
-- Don't store secrets in images
-- Use build args
-
-Docker greatly simplifies Django application development and deployment. Start using containerization today!
-      `,
-    },
-    en: {
-      title: "Docker for Django Projects",
-      date: "January 5, 2024",
-      category: "DevOps",
-      content: `
-Docker revolutionizes the way we develop and deploy applications. In this article, we'll learn how to properly containerize Django projects.
-
-## Why Docker?
-
-Docker solves the "works on my machine" problem:
-
-- Same environment for all developers
-- Simple server deployment
-- Dependency isolation
-- Application scalability
-
-## Creating Dockerfile
-
-Basic Dockerfile for Django:
-
-- Use official Python image
-- Install dependencies as separate layer
-- Copy application code
-- Configure ENTRYPOINT
-
-## Docker Compose
-
-For local development, use docker-compose:
-
-- Service for Django application
-- Service for PostgreSQL
-- Service for Redis (cache/queues)
-- Volumes for persistent data
-
-## Multi-stage Builds
-
-Optimize image size:
-
-- Use builder stage for dependencies
-- Production stage with only necessary files
-- Remove dev dependencies
-- Optimize layers
-
-## Production Settings
-
-For production:
-
-- Use gunicorn/uwsgi
-- Configure nginx as reverse proxy
-- Add healthchecks
-- Log to stdout/stderr
-
-## CI/CD Integration
-
-Automate the process:
-
-- Build images in CI
-- Test in containers
-- Publish to registry
-- Deploy using docker
-
-## Secrets and Variables
-
-Secure configuration management:
-
-- Use .env files
-- Docker secrets for sensitive data
-- Don't store secrets in images
-- Use build args
-
-Docker greatly simplifies Django application development and deployment. Start using containerization today!
-      `,
-    },
-  },
+type Localized = { ru: string; en: string }
+
+type BlogPost = {
+  id: number
+  slug: string
+  title: Localized
+  excerpt: Localized
+  content: Localized
+  cover_image_url: string
+  published_at: string | null
+  category: { id: number; name: Localized; slug: string } | null
 }
 
-const translations = {
-  ru: {
-    back: "Вернуться к блогу",
-    formTitle: "Оставьте комментарий",
-    formName: "Имя",
-    formEmail: "Email",
-    formMessage: "Сообщение",
-    formSubmit: "Отправить",
-    formSuccess: "Спасибо за ваше сообщение!",
-    tocTitle: "Содержание",
-  },
-  en: {
-    back: "Back to blog",
-    formTitle: "Leave a comment",
-    formName: "Name",
-    formEmail: "Email",
-    formMessage: "Message",
-    formSubmit: "Submit",
-    formSuccess: "Thank you for your message!",
-    tocTitle: "Table of Contents",
-  },
+type BlogComment = {
+  id: number
+  name: string
+  message: string
+  created_at: string | null
+  reply_message?: string | null
+  replied_at?: string | null
 }
 
-export default function ArticlePage() {
+export default function BlogArticlePage() {
+  const params = useParams<{ slug: string }>()
+  const slug = params?.slug
+
   const [lang, setLang] = useState<"ru" | "en">("ru")
-  const [formData, setFormData] = useState({ name: "", email: "", message: "" })
-  const [submitted, setSubmitted] = useState(false)
-  const [toc, setToc] = useState<{ id: string; title: string }[]>([])
-  const params = useParams()
-  const slug = params?.slug as string
+  const [article, setArticle] = useState<BlogPost | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [formData, setFormData] = useState({ name: "", email: "", phone: "", message: "" })
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({})
+  const [formSuccess, setFormSuccess] = useState(false)
+  const [formLoading, setFormLoading] = useState(false)
+  const [comments, setComments] = useState<BlogComment[]>([])
+  const [commentsLoading, setCommentsLoading] = useState(false)
 
   useEffect(() => {
-    const savedLang = localStorage.getItem("lang") as "ru" | "en"
-    if (savedLang) setLang(savedLang)
+    if (typeof window === "undefined") return
+    const saved = localStorage.getItem("lang")
+    if (saved === "ru" || saved === "en") setLang(saved)
   }, [])
 
   useEffect(() => {
-    if (articlesData[slug]?.[lang]) {
-      const headings = articlesData[slug][lang].content
-        .split("\n")
-        .filter((line) => line.startsWith("## "))
-        .map((line, i) => ({
-          id: `heading-${i}`,
-          title: line.replace("## ", ""),
-        }))
-      setToc(headings)
+    if (!slug) return
+    let cancelled = false
+    setLoading(true)
+    setError(null)
+
+    fetch(`/api/blog/posts/${encodeURIComponent(String(slug))}`)
+      .then(async (res) => {
+        if (!res.ok) {
+          const data = await res.json().catch(() => null)
+          const message = data?.detail || "Article not found"
+          throw new Error(message)
+        }
+        return res.json()
+      })
+      .then((data: BlogPost) => {
+        if (cancelled) return
+        setArticle(data)
+      })
+      .catch((err: Error) => {
+        if (cancelled) return
+        setError(err.message || "Article not found")
+        setArticle(null)
+      })
+      .finally(() => {
+        if (cancelled) return
+        setLoading(false)
+      })
+
+    return () => {
+      cancelled = true
     }
-  }, [slug, lang])
+  }, [slug])
 
-  const t = translations[lang]
-  const article = articlesData[slug]?.[lang]
+  useEffect(() => {
+    if (!slug) return
+    let cancelled = false
+    setCommentsLoading(true)
+    fetch(`/api/blog/posts/${encodeURIComponent(String(slug))}/comments`)
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data: BlogComment[]) => {
+        if (cancelled) return
+        setComments(data || [])
+      })
+      .catch(() => {
+        if (cancelled) return
+        setComments([])
+      })
+      .finally(() => {
+        if (cancelled) return
+        setCommentsLoading(false)
+      })
 
-  if (!article) {
-    return (
-      <div className="min-h-screen bg-background text-foreground flex items-center justify-center">
-        <p className="text-xl">Article not found</p>
-      </div>
-    )
+    return () => {
+      cancelled = true
+    }
+  }, [slug])
+
+  const title = useMemo(() => {
+    if (!article) return ""
+    return lang === "ru" ? article.title.ru : article.title.en
+  }, [article, lang])
+
+  const content = useMemo(() => {
+    if (!article) return ""
+    return lang === "ru" ? article.content.ru : article.content.en
+  }, [article, lang])
+
+  const publishedAt = useMemo(() => {
+    if (!article?.published_at) return ""
+    const date = new Date(article.published_at)
+    if (Number.isNaN(date.getTime())) return ""
+    return new Intl.DateTimeFormat(lang === "ru" ? "ru-RU" : "en-US", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    }).format(date)
+  }, [article?.published_at, lang])
+
+  const isHtmlContent = useMemo(() => {
+    if (!content) return false
+    return /<\/?[a-z][\s\S]*>/i.test(content)
+  }, [content])
+
+  const { textContent, isCodeBlock } = useMemo(() => {
+    const trimmed = content.trim()
+    const codeBlockMatch = trimmed.match(/^<pre><code>([\s\S]*)<\/code><\/pre>$/i)
+    if (codeBlockMatch) {
+      return { textContent: codeBlockMatch[1], isCodeBlock: true }
+    }
+    return { textContent: content, isCodeBlock: false }
+  }, [content])
+
+  const t = {
+    ru: {
+      contactTitle: "Свяжитесь со мной",
+      contactSubtitle: "Оставьте сообщение, и я отвечу в ближайшее время.",
+      name: "Ваше имя *",
+      email: "Email *",
+      phone: "Телефон",
+      message: "Сообщение *",
+      send: "Отправить",
+      success: "Спасибо! Комментарий отправлен и появится после модерации.",
+      submitError: "Ошибка отправки. Попробуйте позже.",
+      required: "Это поле обязательно",
+      invalidEmail: "Неверный формат email",
+      minLength: "Минимум 2 символа",
+      messageMin: "Минимум 10 символов",
+    },
+    en: {
+      contactTitle: "Get in Touch",
+      contactSubtitle: "Leave a message and I'll get back to you soon.",
+      name: "Your name *",
+      email: "Email *",
+      phone: "Phone",
+      message: "Message *",
+      send: "Send",
+      success: "Thanks! Your comment was sent and will appear after moderation.",
+      submitError: "Failed to send. Please try again.",
+      required: "This field is required",
+      invalidEmail: "Invalid email format",
+      minLength: "Minimum 2 characters",
+      messageMin: "Minimum 10 characters",
+    },
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setSubmitted(true)
-    setTimeout(() => setSubmitted(false), 3000)
-    setFormData({ name: "", email: "", message: "" })
+  const validateForm = () => {
+    const nextErrors: Record<string, string> = {}
+    if (!formData.name.trim()) nextErrors.name = t[lang].required
+    else if (formData.name.trim().length < 2) nextErrors.name = t[lang].minLength
+
+    if (!formData.email.trim()) nextErrors.email = t[lang].required
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) nextErrors.email = t[lang].invalidEmail
+
+    if (!formData.message.trim()) nextErrors.message = t[lang].required
+    else if (formData.message.trim().length < 10) nextErrors.message = t[lang].messageMin
+
+    setFormErrors(nextErrors)
+    return Object.keys(nextErrors).length === 0
+  }
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault()
+    if (!validateForm()) return
+    setFormLoading(true)
+    setFormSuccess(false)
+
+    try {
+      const response = await fetch(`/api/blog/posts/${encodeURIComponent(String(slug))}/comments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: formData.name,
+          email: formData.email,
+          message: formData.message,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error("Failed to send message")
+      }
+
+      setFormSuccess(true)
+      setFormData({ name: "", email: "", phone: "", message: "" })
+      setFormErrors({})
+    } catch {
+      setFormErrors({ submit: t[lang].submitError })
+    } finally {
+      setFormLoading(false)
+    }
   }
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <main className="container mx-auto max-w-7xl px-6 py-20">
+      <main className="container mx-auto px-6 py-20">
         <Link
           href="/blog"
           className="group mb-12 inline-flex items-center gap-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
         >
           <ChevronLeft size={16} className="transition-transform group-hover:-translate-x-1" />
-          {t.back}
+          {lang === "ru" ? "Назад к блогу" : "Back to blog"}
         </Link>
 
-        <div className="grid gap-12 lg:grid-cols-[1fr_300px]">
-          <article>
-            <div className="mb-8">
-              <span className="mb-4 inline-block rounded-full bg-primary/10 px-4 py-1 text-sm font-medium text-primary">
-                {article.category}
-              </span>
-              <h1 className="mb-6 text-4xl font-bold tracking-tight text-balance md:text-5xl">{article.title}</h1>
-              <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                <div className="flex items-center gap-2">
-                  <Calendar size={16} />
-                  <span>{article.date}</span>
-                </div>
-                <div className="flex items-center gap-2">
+        {loading && (
+          <div className="text-muted-foreground">{lang === "ru" ? "Загрузка..." : "Loading..."}</div>
+        )}
+
+        {!loading && error && (
+          <div className="text-destructive">
+            {lang === "ru" ? "Статья не найдена" : "Article not found"}
+          </div>
+        )}
+
+        {!loading && !error && article && (
+          <article className="space-y-8">
+            {article.cover_image_url && (
+              <div className="overflow-hidden rounded-2xl border border-border/40">
+                <img src={article.cover_image_url} alt={title} className="h-72 w-full object-cover" />
+              </div>
+            )}
+
+            <div className="space-y-4">
+              {article.category && (
+                <span className="inline-flex rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+                  {lang === "ru" ? article.category.name.ru : article.category.name.en}
+                </span>
+              )}
+              <h1 className="text-4xl font-bold tracking-tight md:text-5xl">{title}</h1>
+              <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
+                {publishedAt && (
+                  <span className="inline-flex items-center gap-2">
+                    <Calendar size={16} />
+                    {publishedAt}
+                  </span>
+                )}
+                <span className="inline-flex items-center gap-2">
                   <User size={16} />
-                  <span>Aleksey Achkasov</span>
-                </div>
+                  BearCoder
+                </span>
               </div>
             </div>
 
-            <div className="prose prose-invert prose-lg max-w-none">
-              {article.content.split("\n").map((paragraph, i) => {
-                if (paragraph.startsWith("## ")) {
-                  const headingIndex = toc.findIndex((h) => h.title === paragraph.replace("## ", ""))
-                  return (
-                    <h2 key={i} id={`heading-${headingIndex}`} className="mb-4 mt-12 text-2xl font-bold">
-                      {paragraph.replace("## ", "")}
-                    </h2>
-                  )
-                }
-                if (paragraph.startsWith("- ")) {
-                  return (
-                    <li key={i} className="mb-2 ml-6 list-disc text-muted-foreground">
-                      {paragraph.replace("- ", "")}
-                    </li>
-                  )
-                }
-                if (paragraph.startsWith("```")) {
-                  return null
-                }
-                if (paragraph.trim()) {
-                  return (
-                    <p key={i} className="mb-6 leading-relaxed text-foreground">
-                      {paragraph}
-                    </p>
-                  )
-                }
-                return null
-              })}
-            </div>
+            {isHtmlContent && !isCodeBlock ? (
+              <div className="prose prose-neutral max-w-none" dangerouslySetInnerHTML={{ __html: content }} />
+            ) : (
+              <div className="whitespace-pre-wrap text-base leading-relaxed text-foreground/90">{textContent}</div>
+            )}
 
-            <Card className="glass-card mt-12 border-border/40 p-8">
-              <h2 className="mb-6 text-2xl font-bold">{t.formTitle}</h2>
-              {submitted ? (
-                <div className="rounded-lg bg-primary/10 p-6 text-center">
-                  <p className="font-medium text-primary">{t.formSuccess}</p>
+            <section className="mt-12 space-y-8">
+              <div className="mx-auto max-w-2xl rounded-2xl border border-border/40 bg-card/50 p-8">
+              <div className="mb-6 space-y-2">
+                <h2 className="text-2xl font-semibold">{t[lang].contactTitle}</h2>
+                <p className="text-sm text-muted-foreground">{t[lang].contactSubtitle}</p>
+              </div>
+
+              {formSuccess && <div className="mb-4 text-sm text-emerald-600">{t[lang].success}</div>}
+              {formErrors.submit && <div className="mb-4 text-sm text-red-500">{formErrors.submit}</div>}
+
+              <form onSubmit={handleSubmit} className="grid gap-4 md:grid-cols-2">
+                <div className="md:col-span-1">
+                  <Input
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    placeholder={t[lang].name}
+                    className={formErrors.name ? "border-red-500" : ""}
+                  />
+                  {formErrors.name && <p className="mt-1 text-xs text-red-500">{formErrors.name}</p>}
                 </div>
-              ) : (
-                <form onSubmit={handleSubmit} className="space-y-6">
-                  <div>
-                    <Input
-                      id="name"
-                      type="text"
-                      placeholder={t.formName}
-                      required
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      className="w-full"
-                    />
-                  </div>
-                  <div>
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder={t.formEmail}
-                      required
-                      value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      className="w-full"
-                    />
-                  </div>
-                  <div>
-                    <Textarea
-                      id="message"
-                      placeholder={t.formMessage}
-                      required
-                      rows={6}
-                      value={formData.message}
-                      onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                      className="w-full"
-                    />
-                  </div>
-                  <Button type="submit" size="lg" className="w-full">
-                    {t.formSubmit}
+                <div className="md:col-span-1">
+                  <Input
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    placeholder={t[lang].email}
+                    className={formErrors.email ? "border-red-500" : ""}
+                  />
+                  {formErrors.email && <p className="mt-1 text-xs text-red-500">{formErrors.email}</p>}
+                </div>
+                <div className="md:col-span-2">
+                  <Input
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    placeholder={t[lang].phone}
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <Textarea
+                    value={formData.message}
+                    onChange={(e) => setFormData({ ...formData, message: e.target.value })}
+                    placeholder={t[lang].message}
+                    rows={5}
+                    className={formErrors.message ? "border-red-500" : ""}
+                  />
+                  {formErrors.message && <p className="mt-1 text-xs text-red-500">{formErrors.message}</p>}
+                </div>
+                <div className="md:col-span-2">
+                  <Button type="submit" disabled={formLoading} className="w-full">
+                    {formLoading ? "..." : t[lang].send}
                   </Button>
-                </form>
-              )}
-            </Card>
-          </article>
+                </div>
+              </form>
+              </div>
 
-          <aside className="hidden lg:block">
-            <div className="glass-card sticky top-24 rounded-xl border-border/40 p-6 max-h-[calc(100vh-7rem)] overflow-y-auto">
-              <h3 className="mb-4 text-sm font-medium uppercase tracking-wider text-muted-foreground">{t.tocTitle}</h3>
-              <nav className="space-y-2">
-                {toc.map((heading) => (
-                  <a
-                    key={heading.id}
-                    href={`#${heading.id}`}
-                    className="block text-sm text-foreground/70 transition-colors hover:text-primary"
-                  >
-                    {heading.title}
-                  </a>
-                ))}
-              </nav>
-            </div>
-          </aside>
-        </div>
+              <div className="mx-auto max-w-2xl">
+                <h3 className="mb-4 text-lg font-semibold">
+                  {lang === "ru" ? "Комментарии" : "Comments"} ({comments.length})
+                </h3>
+                {commentsLoading && <div className="text-sm text-muted-foreground">{t[lang].loading}</div>}
+                {!commentsLoading && comments.length === 0 && (
+                  <div className="text-sm text-muted-foreground">
+                    {lang === "ru" ? "Комментариев пока нет." : "No comments yet."}
+                  </div>
+                )}
+                <div className="space-y-4">
+                  {comments.map((comment) => (
+                    <div key={comment.id} className="rounded-xl border border-border/40 bg-card/30 p-4">
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                        <span className="font-medium text-foreground/90">{comment.name}</span>
+                        {comment.created_at && (
+                          <span>
+                            {new Intl.DateTimeFormat(lang === "ru" ? "ru-RU" : "en-US", {
+                              year: "numeric",
+                              month: "long",
+                              day: "numeric",
+                            }).format(new Date(comment.created_at))}
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">
+                        {comment.message}
+                      </p>
+                      {comment.reply_message && (
+                        <div className="mt-4 rounded-lg border border-primary/20 bg-primary/5 p-3">
+                          <div className="text-xs font-semibold text-primary">
+                            {lang === "ru" ? "Ответ администратора" : "Admin reply"}
+                          </div>
+                          <p className="mt-1 whitespace-pre-wrap text-sm text-foreground/90">
+                            {comment.reply_message}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </section>
+          </article>
+        )}
       </main>
     </div>
   )
