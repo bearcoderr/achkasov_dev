@@ -7,6 +7,7 @@ import Footer from "@/components/footer"
 import ServiceModal from "@/components/service-modal"
 import Link from "next/link"
 import Image from "next/image"
+import Script from "next/script"
 import { ChevronRight } from "lucide-react"
 import ScrollReveal from "@/components/scroll-reveal"
 import { api, type PageData } from "@/lib/api"
@@ -242,11 +243,39 @@ export default function Home() {
 
   }
 
+  const baseUrl = typeof window !== "undefined" ? window.location.origin : ""
+  const socialLinks = Object.values(t.hero.social_links ?? {}).filter(Boolean) as string[]
+  const homeJsonLd = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebSite",
+        name: t.hero.name || "Portfolio",
+        url: baseUrl || undefined,
+        inLanguage: lang === "ru" ? "ru-RU" : "en-US",
+      },
+      {
+        "@type": "Person",
+        name: t.hero.name || "Portfolio",
+        jobTitle: t.hero.title || undefined,
+        url: baseUrl || undefined,
+        image: t.hero.img || undefined,
+        sameAs: socialLinks.length ? socialLinks : undefined,
+      },
+    ],
+  }
+
   return (
     <div className="relative min-h-screen">
       <Header />
 
       <main className="pt-20">
+        <Script
+          id="ld-home"
+          type="application/ld+json"
+          strategy="afterInteractive"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(homeJsonLd) }}
+        />
         {/* Hero with Photo */}
         <ScrollReveal>
           <section className="container mx-auto px-6 py-24 md:py-32">

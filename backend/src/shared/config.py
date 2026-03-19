@@ -46,6 +46,14 @@ class Settings(BaseSettings):
     pgadmin_password: str = "admin123"
     pgadmin_port: int = 5050
 
+    # Redis cache
+    redis_url: str = Field(
+        default="redis://redis:6379/0",
+        validation_alias=AliasChoices("REDIS_URL", "CACHE_REDIS_URL"),
+    )
+    cache_enabled: bool = Field(default=True, validation_alias=AliasChoices("CACHE_ENABLED"))
+    cache_ttl_seconds: int = Field(default=300, validation_alias=AliasChoices("CACHE_TTL_SECONDS"))
+
     class Config:
         env_file = ".env"
         case_sensitive = False

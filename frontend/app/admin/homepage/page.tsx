@@ -673,11 +673,25 @@ export default function AdminHomePage() {
     const file = e.target.files?.[0]
     if (file) {
       if (type === "hero") {
-        const reader = new FileReader()
-        reader.onloadend = () => {
-          setData({ ...data, hero: { ...data.hero, image: reader.result as string } })
+        setIsUploadingImage(true)
+        setError(null)
+        try {
+          const formData = new FormData()
+          formData.append("file", file)
+          const response = await api.post("/admin-api/hero/upload-image", formData, {
+            headers: { "Content-Type": "multipart/form-data" },
+          })
+          const url = response.data?.webp_url || response.data?.url
+          if (!url) {
+            throw new Error("No URL returned")
+          }
+          setData({ ...data, hero: { ...data.hero, image: url } })
+        } catch (err) {
+          console.error("Error uploading hero image:", err)
+          setError("Ошибка загрузки изображения Hero")
+        } finally {
+          setIsUploadingImage(false)
         }
-        reader.readAsDataURL(file)
       } else if (type === "project") {
         if (!editingProject) return
         setIsUploadingImage(true)

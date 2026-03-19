@@ -517,4 +517,6 @@ def get_site_settings_public(db: Session = Depends(get_db)):
         "favicon_svg": site.get("favicon_svg", None),
         "apple_icon": site.get("apple_icon", None),
         "og_default_image": site.get("og_default_image", None),
+        "cache_enabled": site.get("cache_enabled", None),
+        "cache_ttl_seconds": site.get("cache_ttl_seconds", None),
     }

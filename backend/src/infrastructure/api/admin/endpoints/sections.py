@@ -9,8 +9,10 @@ import jwt
 import datetime
 from passlib.context import CryptContext
 from pathlib import Path
+import os
 import uuid
 import shutil
+from PIL import Image
 
 from src.infrastructure.db.database import get_db
 from src.infrastructure.db.models import (
@@ -39,6 +41,7 @@ from src.infrastructure.api.admin.schemas.admin_schemas import (
     BlogCommentResponse, BlogCommentReplyRequest
 )
 from src.shared.config import settings
+from src.shared.cache import clear_cache, get_cache_status
 
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 ALGORITHM = "HS256"
@@ -55,8 +58,9 @@ BLOG_UPLOAD_DIR = Path(settings.upload_dir) / "blog"
 BLOG_UPLOAD_DIR = Path(settings.upload_dir) / "blog"
 RESUME_UPLOAD_DIR = Path(settings.upload_dir) / "resume"
 SITE_UPLOAD_DIR = Path(settings.upload_dir) / "site"
+HERO_UPLOAD_DIR = Path(settings.upload_dir) / "hero"
 
-for _dir in [PROJECTS_UPLOAD_DIR, CERTIFICATES_UPLOAD_DIR, BLOG_UPLOAD_DIR, RESUME_UPLOAD_DIR, SITE_UPLOAD_DIR]:
+for _dir in [PROJECTS_UPLOAD_DIR, CERTIFICATES_UPLOAD_DIR, BLOG_UPLOAD_DIR, RESUME_UPLOAD_DIR, SITE_UPLOAD_DIR, HERO_UPLOAD_DIR]:
     _dir.mkdir(parents=True, exist_ok=True)
 
 def localized(ru_value: Optional[str], en_value: Optional[str]) -> dict:
@@ -84,6 +88,8 @@ def get_site_settings(settings: Settings) -> dict:
         "favicon_svg": site.get("favicon_svg", None),
         "apple_icon": site.get("apple_icon", None),
         "og_default_image": site.get("og_default_image", None),
+        "cache_enabled": site.get("cache_enabled", None),
+        "cache_ttl_seconds": site.get("cache_ttl_seconds", None),
     }
 
 def details_to_admin(value: Optional[object]) -> str:
@@ -106,8 +112,8 @@ def details_to_storage(value: Optional[object]) -> list:
         return []
     return [line.strip() for line in text.splitlines() if line.strip()]
 
-def save_uploaded_file(file: UploadFile, target_dir: Path) -> str:
-    """Save uploaded file and return public URL."""
+def save_uploaded_file(file: UploadFile, target_dir: Path, convert_to_webp: bool = True) -> dict:
+    """Save uploaded file and return public URLs (original + webp)."""
     if not file.filename:
         raise HTTPException(status_code=400, detail="File name is required")
 
@@ -119,7 +125,61 @@ def save_uploaded_file(file: UploadFile, target_dir: Path) -> str:
     with file_path.open("wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
-    return f"/uploads/{target_dir.name}/{filename}"
+    original_url = f"/uploads/{target_dir.name}/{filename}"
+    webp_url = None
+
+    if convert_to_webp and suffix not in {".svg", ".ico"}:
+        try:
+            img = Image.open(file_path)
+            if img.mode in ("RGBA", "P"):
+                img = img.convert("RGB")
+            webp_name = f"{file_path.stem}.webp"
+            webp_path = file_path.with_name(webp_name)
+            img.save(webp_path, format="WEBP", quality=85, method=6)
+            webp_url = f"/uploads/{target_dir.name}/{webp_name}"
+        except Exception:
+            webp_url = None
+
+    return {"url": original_url, "webp_url": webp_url}
+
+
+def _build_media_usage_map(db: Session, paths: List[str]) -> dict:
+    usage = {path: [] for path in paths}
+    needles = {path: f"/uploads/{path}" for path in paths}
+
+    def record(path: str, model: str, field: str, record_id: int):
+        usage[path].append({"model": model, "field": field, "id": record_id})
+
+    def match_value(value: Optional[str], model: str, field: str, record_id: int):
+        if not value:
+            return
+        for path, needle in needles.items():
+            if needle in value:
+                record(path, model, field, record_id)
+
+    hero = db.query(Hero).first()
+    if hero:
+        match_value(hero.image_url, "hero", "image_url", hero.id)
+
+    for project in db.query(Project).all():
+        match_value(project.image_url, "projects", "image_url", project.id)
+
+    for cert in db.query(Certificate).all():
+        match_value(cert.image_url, "certificates", "image_url", cert.id)
+
+    for post in db.query(BlogPost).all():
+        match_value(post.cover_image_url, "blog_posts", "cover_image_url", post.id)
+        match_value(post.og_image_url, "blog_posts", "og_image_url", post.id)
+        match_value(post.content_ru, "blog_posts", "content_ru", post.id)
+        match_value(post.content_en, "blog_posts", "content_en", post.id)
+
+    settings_row = db.query(Settings).first()
+    if settings_row and isinstance(settings_row.value, dict):
+        site = settings_row.value.get("site_settings", {}) if isinstance(settings_row.value, dict) else {}
+        for field in ["favicon_light", "favicon_dark", "favicon_svg", "apple_icon", "og_default_image"]:
+            match_value(site.get(field), "settings", field, settings_row.id)
+
+    return usage
 
 
 def get_secret_key() -> str:
@@ -462,8 +522,8 @@ def upload_project_image(
         user: dict = Depends(verify_token)
 ):
     """Upload project image and return public URL."""
-    url = save_uploaded_file(file, PROJECTS_UPLOAD_DIR)
-    return {"url": url}
+    result = save_uploaded_file(file, PROJECTS_UPLOAD_DIR, convert_to_webp=True)
+    return result
 
 
 @router.post("/hero/upload-resume")
@@ -476,8 +536,17 @@ def upload_resume(
     lang_value = (lang or "").lower()
     if lang_value not in {"ru", "en"}:
         raise HTTPException(status_code=400, detail="Invalid lang. Use ru or en.")
-    url = save_uploaded_file(file, RESUME_UPLOAD_DIR)
-    return {"url": url, "lang": lang_value}
+    result = save_uploaded_file(file, RESUME_UPLOAD_DIR, convert_to_webp=False)
+    return {"url": result.get("url"), "webp_url": result.get("webp_url"), "lang": lang_value}
+
+
+@router.post("/hero/upload-image")
+def upload_hero_image(
+        file: UploadFile = File(...),
+        user: dict = Depends(verify_token)
+):
+    """Upload hero image and return public URL (original + webp)."""
+    return save_uploaded_file(file, HERO_UPLOAD_DIR, convert_to_webp=True)
 
 
 @router.get("/projects", response_model=List[ProjectResponse])
@@ -932,8 +1001,8 @@ def upload_certificate_image(
         user: dict = Depends(verify_token)
 ):
     """Upload certificate image and return public URL."""
-    url = save_uploaded_file(file, CERTIFICATES_UPLOAD_DIR)
-    return {"url": url}
+    result = save_uploaded_file(file, CERTIFICATES_UPLOAD_DIR, convert_to_webp=True)
+    return result
 
 
 @router.post("/blog/upload-image")
@@ -942,8 +1011,8 @@ def upload_blog_image(
         user: dict = Depends(verify_token)
 ):
     """Upload blog image and return public URL."""
-    url = save_uploaded_file(file, BLOG_UPLOAD_DIR)
-    return {"url": url}
+    result = save_uploaded_file(file, BLOG_UPLOAD_DIR, convert_to_webp=True)
+    return result
 
 
 # ============= PERSONAL FACTS ENDPOINTS =============
@@ -1730,6 +1799,8 @@ def update_site_settings_admin(
         "favicon_svg": request.favicon_svg,
         "apple_icon": request.apple_icon,
         "og_default_image": request.og_default_image,
+        "cache_enabled": request.cache_enabled,
+        "cache_ttl_seconds": request.cache_ttl_seconds,
     }
     settings.value = value
     flag_modified(settings, "value")
@@ -1755,6 +1826,72 @@ def upload_site_asset(
         shutil.copyfileobj(file.file, buffer)
 
     return {"url": f"/uploads/site/{safe_name}", "type": type}
+
+
+@router.get("/media")
+def list_media_files(
+        db: Session = Depends(get_db),
+        user: dict = Depends(verify_token)
+):
+    """List all media files from uploads."""
+    base_dir = Path(settings.upload_dir)
+    items = []
+    paths = []
+    for root, _, files in os.walk(base_dir):
+        for name in files:
+            file_path = Path(root) / name
+            rel_path = file_path.relative_to(base_dir)
+            url = f"/uploads/{rel_path.as_posix()}"
+            stat = file_path.stat()
+            rel = str(rel_path.as_posix())
+            paths.append(rel)
+            items.append({
+                "path": rel,
+                "url": url,
+                "size": stat.st_size,
+                "modified_at": datetime.datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                "is_webp": file_path.suffix.lower() == ".webp",
+                "folder": rel_path.parts[0] if rel_path.parts else "",
+            })
+    usage_map = _build_media_usage_map(db, paths)
+    for item in items:
+        item["usage"] = usage_map.get(item["path"], [])
+        item["is_used"] = len(item["usage"]) > 0
+
+    items.sort(key=lambda x: x["modified_at"], reverse=True)
+    return items
+
+
+@router.post("/media/delete")
+def delete_media_files(paths: List[str], user: dict = Depends(verify_token)):
+    """Delete selected media files by relative path."""
+    base_dir = Path(settings.upload_dir).resolve()
+    deleted = []
+    for rel in paths:
+        try:
+            candidate = (base_dir / rel).resolve()
+            if base_dir not in candidate.parents:
+                continue
+            if candidate.exists() and candidate.is_file():
+                candidate.unlink()
+                deleted.append(rel)
+        except Exception:
+            continue
+    return {"success": True, "deleted": deleted}
+
+
+@router.post("/cache/clear")
+async def clear_cache_admin(
+        user: dict = Depends(verify_token)
+):
+    """Clear Redis cache manually from admin."""
+    await clear_cache()
+    return {"success": True, "message": "Cache cleared"}
+
+
+@router.get("/cache/status")
+async def cache_status_admin(user: dict = Depends(verify_token)):
+    return await get_cache_status()
 
 
 @router.get("/social-links", response_model=dict)

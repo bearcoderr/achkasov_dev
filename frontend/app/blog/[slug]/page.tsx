@@ -1,12 +1,14 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { useParams } from "next/navigation"
+import Script from "next/script"
 import { ChevronLeft, Calendar, User } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import hljs from "highlight.js/lib/common"
 
 type Localized = { ru: string; en: string }
 
@@ -44,6 +46,7 @@ export default function BlogArticlePage() {
   const [formLoading, setFormLoading] = useState(false)
   const [comments, setComments] = useState<BlogComment[]>([])
   const [commentsLoading, setCommentsLoading] = useState(false)
+  const contentRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     if (typeof window === "undefined") return
@@ -52,12 +55,19 @@ export default function BlogArticlePage() {
   }, [])
 
   useEffect(() => {
-    if (!slug) return
+    if (!slug) {
+      setLoading(false)
+      setError("Article not found")
+      return
+    }
     let cancelled = false
     setLoading(true)
     setError(null)
 
-    fetch(`/api/blog/posts/${encodeURIComponent(String(slug))}`)
+    const controller = new AbortController()
+    const timeout = window.setTimeout(() => controller.abort(), 10000)
+
+    fetch(`/api/blog/posts/${encodeURIComponent(String(slug))}`, { signal: controller.signal })
       .then(async (res) => {
         if (!res.ok) {
           const data = await res.json().catch(() => null)
@@ -72,24 +82,34 @@ export default function BlogArticlePage() {
       })
       .catch((err: Error) => {
         if (cancelled) return
-        setError(err.message || "Article not found")
+        const message = err?.name === "AbortError" ? "Request timeout" : err.message
+        setError(message || "Article not found")
         setArticle(null)
       })
       .finally(() => {
         if (cancelled) return
         setLoading(false)
+        window.clearTimeout(timeout)
       })
 
     return () => {
       cancelled = true
+      controller.abort()
+      window.clearTimeout(timeout)
     }
   }, [slug])
 
   useEffect(() => {
-    if (!slug) return
+    if (!slug) {
+      setComments([])
+      setCommentsLoading(false)
+      return
+    }
     let cancelled = false
     setCommentsLoading(true)
-    fetch(`/api/blog/posts/${encodeURIComponent(String(slug))}/comments`)
+    const controller = new AbortController()
+    const timeout = window.setTimeout(() => controller.abort(), 10000)
+    fetch(`/api/blog/posts/${encodeURIComponent(String(slug))}/comments`, { signal: controller.signal })
       .then((res) => (res.ok ? res.json() : []))
       .then((data: BlogComment[]) => {
         if (cancelled) return
@@ -102,16 +122,24 @@ export default function BlogArticlePage() {
       .finally(() => {
         if (cancelled) return
         setCommentsLoading(false)
+        window.clearTimeout(timeout)
       })
 
     return () => {
       cancelled = true
+      controller.abort()
+      window.clearTimeout(timeout)
     }
   }, [slug])
 
   const title = useMemo(() => {
     if (!article) return ""
     return lang === "ru" ? article.title.ru : article.title.en
+  }, [article, lang])
+
+  const excerpt = useMemo(() => {
+    if (!article) return ""
+    return lang === "ru" ? article.excerpt.ru : article.excerpt.en
   }, [article, lang])
 
   const content = useMemo(() => {
@@ -143,6 +171,65 @@ export default function BlogArticlePage() {
     }
     return { textContent: content, isCodeBlock: false }
   }, [content])
+
+  useEffect(() => {
+    if (!contentRef.current) return
+    const root = contentRef.current
+
+    const applyEnhancements = () => {
+      const blocks = root.querySelectorAll("pre")
+
+      blocks.forEach((pre) => {
+        if (!(pre instanceof HTMLElement)) return
+        const code = pre.querySelector("code") as HTMLElement | null
+        if (!code) return
+
+        if (!pre.classList.contains("code-block")) {
+          pre.classList.add("code-block")
+        }
+
+        if (!code.classList.contains("hljs")) {
+          hljs.highlightElement(code)
+        }
+
+        if (!pre.querySelector(".code-copy-btn")) {
+          const button = document.createElement("button")
+          button.type = "button"
+          button.className = "code-copy-btn"
+          button.textContent = lang === "ru" ? "Скопировать" : "Copy"
+          button.addEventListener("click", async () => {
+            try {
+              await navigator.clipboard.writeText(code.innerText)
+              button.setAttribute("data-copied", "true")
+              button.textContent = lang === "ru" ? "Скопировано" : "Copied"
+              window.setTimeout(() => {
+                button.removeAttribute("data-copied")
+                button.textContent = lang === "ru" ? "Скопировать" : "Copy"
+              }, 1400)
+            } catch {
+              // no-op
+            }
+          })
+          pre.appendChild(button)
+        } else {
+          const existing = pre.querySelector(".code-copy-btn") as HTMLButtonElement | null
+          if (existing && !existing.getAttribute("data-copied")) {
+            existing.textContent = lang === "ru" ? "Скопировать" : "Copy"
+          }
+        }
+      })
+    }
+
+    const raf = window.requestAnimationFrame(applyEnhancements)
+    const timeout = window.setTimeout(applyEnhancements, 50)
+    const timeout2 = window.setTimeout(applyEnhancements, 250)
+
+    return () => {
+      window.cancelAnimationFrame(raf)
+      window.clearTimeout(timeout)
+      window.clearTimeout(timeout2)
+    }
+  }, [content, lang, isHtmlContent, isCodeBlock])
 
   const t = {
     ru: {
@@ -176,6 +263,28 @@ export default function BlogArticlePage() {
       messageMin: "Minimum 10 characters",
     },
   }
+
+  const baseUrl = typeof window !== "undefined" ? window.location.origin : ""
+  const articleJsonLd = article
+    ? {
+        "@context": "https://schema.org",
+        "@type": "BlogPosting",
+        headline: title || undefined,
+        description: excerpt || undefined,
+        url: baseUrl ? `${baseUrl}/blog/${article.slug}` : `/blog/${article.slug}`,
+        datePublished: article.published_at || undefined,
+        image: article.cover_image_url || undefined,
+        inLanguage: lang === "ru" ? "ru-RU" : "en-US",
+        author: {
+          "@type": "Person",
+          name: "BearCoder",
+        },
+        mainEntityOfPage: {
+          "@type": "WebPage",
+          "@id": baseUrl ? `${baseUrl}/blog/${article.slug}` : `/blog/${article.slug}`,
+        },
+      }
+    : null
 
   const validateForm = () => {
     const nextErrors: Record<string, string> = {}
@@ -226,6 +335,14 @@ export default function BlogArticlePage() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <main className="container mx-auto px-6 py-20">
+        {articleJsonLd && (
+          <Script
+            id="ld-blog-article"
+            type="application/ld+json"
+            strategy="afterInteractive"
+            dangerouslySetInnerHTML={{ __html: JSON.stringify(articleJsonLd) }}
+          />
+        )}
         <Link
           href="/blog"
           className="group mb-12 inline-flex items-center gap-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
@@ -274,9 +391,18 @@ export default function BlogArticlePage() {
             </div>
 
             {isHtmlContent && !isCodeBlock ? (
-              <div className="prose prose-neutral max-w-none" dangerouslySetInnerHTML={{ __html: content }} />
+              <div
+                ref={contentRef}
+                className="prose prose-neutral max-w-none"
+                dangerouslySetInnerHTML={{ __html: content }}
+              />
             ) : (
-              <div className="whitespace-pre-wrap text-base leading-relaxed text-foreground/90">{textContent}</div>
+              <div
+                ref={contentRef}
+                className="whitespace-pre-wrap text-base leading-relaxed text-foreground/90"
+              >
+                {textContent}
+              </div>
             )}
 
             <section className="mt-12 space-y-8">

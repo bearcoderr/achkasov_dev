@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
+import Script from "next/script"
 import { ChevronLeft, Calendar } from "lucide-react"
 import { Card } from "@/components/ui/card"
 
@@ -138,9 +139,31 @@ export default function BlogPage() {
     }).format(date)
   }
 
+  const baseUrl = typeof window !== "undefined" ? window.location.origin : ""
+  const blogJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Blog",
+    name: t.title,
+    url: baseUrl ? `${baseUrl}/blog` : undefined,
+    inLanguage: lang === "ru" ? "ru-RU" : "en-US",
+    blogPost: posts.map((post) => ({
+      "@type": "BlogPosting",
+      headline: lang === "ru" ? post.title.ru : post.title.en,
+      url: baseUrl ? `${baseUrl}/blog/${post.slug}` : `/blog/${post.slug}`,
+      datePublished: post.published_at || undefined,
+      image: post.cover_image_url || undefined,
+    })),
+  }
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <main className="container mx-auto px-6 py-20">
+        <Script
+          id="ld-blog-list"
+          type="application/ld+json"
+          strategy="afterInteractive"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(blogJsonLd) }}
+        />
         <Link
           href="/"
           className="group mb-12 inline-flex items-center gap-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"

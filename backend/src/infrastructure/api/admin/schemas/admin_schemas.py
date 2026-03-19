@@ -235,6 +235,8 @@ class SiteSettingsUpdateRequest(BaseModel):
     favicon_svg: Optional[str] = None
     apple_icon: Optional[str] = None
     og_default_image: Optional[str] = None
+    cache_enabled: Optional[bool] = None
+    cache_ttl_seconds: Optional[int] = None
 
 # Blog Schemas
 class BlogCategoryCreateRequest(BaseModel):
